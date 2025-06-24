@@ -1,0 +1,125 @@
+{
+  "id": "597cec34-7bec-4bda-8e73-c1bdb5b04704",
+  "version": "2.0",
+  "name": "Yauheni",
+  "url": "https://portalpacjenta.luxmed.pl/PatientPortal/NewPortal/Page/Account/Login?returnUrl=%2FPage%2FDashboard",
+  "tests": [{
+    "id": "611fc8d7-e317-409d-882c-d84cdebb5a3d",
+    "name": "Luxmed",
+    "commands": [{
+      "id": "a75ef404-5598-499d-906a-355aea7baa92",
+      "comment": "",
+      "command": "open",
+      "target": "/",
+      "targets": [],
+      "value": ""
+    }, {
+      "id": "10e7f1e9-1dcc-44cd-ae43-b3c46f4c59c4",
+      "comment": "",
+      "command": "setWindowSize",
+      "target": "1909x1030",
+      "targets": [],
+      "value": ""
+    }, {
+      "id": "fdef7376-35d2-4b5f-b43f-104b0c769427",
+      "comment": "",
+      "command": "type",
+      "target": "id=Login",
+      "targets": [
+        ["id=Login", "id"],
+        ["css=#Login", "css:finder"],
+        ["xpath=//input[@id='Login']", "xpath:attributes"],
+        ["xpath=//form[@id='loginForm']/div/div/input", "xpath:idRelative"],
+        ["xpath=//input", "xpath:position"]
+      ],
+      "value": "Ekaterinafreese@gmail.com"
+    }, {
+      "id": "dfd92e10-5f67-4947-9be9-e8d161979460",
+      "comment": "",
+      "command": "type",
+      "target": "id=Password",
+      "targets": [
+        ["id=Password", "id"],
+        ["name=password", "name"],
+        ["css=#Password", "css:finder"],
+        ["xpath=//input[@id='Password']", "xpath:attributes"],
+        ["xpath=//form[@id='loginForm']/div[2]/div/input", "xpath:idRelative"],
+        ["xpath=//div[2]/div/input", "xpath:position"]
+      ],
+      "value": "asdasd"
+    }, {
+      "id": "a1ac7665-79a4-41ae-bc76-d4ac725c70ab",
+      "comment": "",
+      "command": "click",
+      "target": "id=LoginSubmit",
+      "targets": [
+        ["id=LoginSubmit", "id"],
+        ["css=#LoginSubmit", "css:finder"],
+        ["xpath=//button[@id='LoginSubmit']", "xpath:attributes"],
+        ["xpath=//form[@id='loginForm']/button", "xpath:idRelative"],
+        ["xpath=//button", "xpath:position"],
+        ["xpath=//button[contains(.,'Log in')]", "xpath:innerText"]
+      ],
+      "value": ""
+    }, {
+      "id": "48b8cb8d-b187-44bf-b1a4-7dd5029c9010",
+      "comment": "",
+      "command": "click",
+      "target": "xpath=//button[contains(@class, 'btn-book-visit')]",
+      "targets": [
+        ["css=.btn-book-visit", "css:finder"],
+        ["xpath=//div[@id='newPortalMenu']/div/div[2]/button", "xpath:idRelative"],
+        ["xpath=//button", "xpath:position"],
+        ["xpath=//button[contains(.,'Book')]", "xpath:innerText"]
+      ],
+      "value": ""
+    }, {
+      "id": "e23bcbcf-d1e3-49a7-8910-90bbdd6653a9",
+      "comment": "",
+      "command": "click",
+      "target": "xpath=//div[contains(@class, 'recent-search-parameters-box')]/div/button[contains(text(), 'Psychiatrist consultation - first visit')]",
+      "targets": [
+        ["css=.btn-recent-search:nth-child(1)", "css:finder"],
+        ["xpath=//main[@id='content']/app-supervisor/app-search-parameters/div/div[2]/div/div/div/div/div/button", "xpath:idRelative"],
+        ["xpath=//div/div/div/div/button", "xpath:position"],
+        ["xpath=//button[contains(.,'Video consultation - Psychiatrist consultation – first visit')]", "xpath:innerText"]
+      ],
+      "value": ""
+    }, {
+      "id": "806a6114-2cd7-4420-a3d2-3218be0297a8",
+      "comment": "",
+      "command": "click",
+      "target": "css=.btn-success",
+      "targets": [
+        ["css=.btn-success", "css:finder"],
+        ["xpath=//button[@type='submit']", "xpath:attributes"],
+        ["xpath=//main[@id='content']/app-supervisor/app-search-parameters/div/div[2]/div/form/div[2]/button", "xpath:idRelative"],
+        ["xpath=//form/div[2]/button", "xpath:position"],
+        ["xpath=//button[contains(.,'Search')]", "xpath:innerText"]
+      ],
+      "value": ""
+    }, {
+      "id": "ca9aef51-0b1b-42c0-a01c-d53909e6729a",
+      "comment": "",
+      "command": "assertElementPresent",
+      "target": "xpath=//div[@class='days']/div/div[2]/div[2]/span[text() != '0'][text() != 'x']",
+      "targets": [
+        ["css=.day:nth-child(2) span", "css:finder"],
+        ["xpath=//div[@id='calendarWrapperId']/app-terms-calendar/div/div/div[2]/div[2]/div[2]/div[2]/span", "xpath:idRelative"],
+        ["xpath=//div[2]/div[2]/div[2]/span", "xpath:position"],
+        ["xpath=//span[contains(.,'1')]", "xpath:innerText"]
+      ],
+      "value": ""
+    }]
+  }],
+  "suites": [{
+    "id": "38a56bc4-2f58-44e2-be51-f1cc732f2351",
+    "name": "Default Suite",
+    "persistSession": false,
+    "parallel": false,
+    "timeout": 300,
+    "tests": ["611fc8d7-e317-409d-882c-d84cdebb5a3d"]
+  }],
+  "urls": ["https://portalpacjenta.luxmed.pl/PatientPortal/NewPortal/Page/Account/Login?returnUrl=%2FPage%2FDashboard"],
+  "plugins": []
+}
