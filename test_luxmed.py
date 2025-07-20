@@ -21,12 +21,12 @@ if os.path.exists(FLAG_FILE):
     sys.exit(0)
 
 # Set your Discord webhook URL here or via environment variable
-DISCORD_WEBHOOK_URL = os.environ.get('DISCORD_WEBHOOK_URL')
+DISCORD_WEBHOOK_URL = os.environ.get('DISCORD_WEBHOOK_URL_LUXMED')
 KATYA_PASS = os.environ.get("KatyaPass")
 
 
 def send_discord_message(message):
-    if DISCORD_WEBHOOK_URL == 'YOUR_WEBHOOK_URL_HERE':
+    if not DISCORD_WEBHOOK_URL or DISCORD_WEBHOOK_URL == 'YOUR_WEBHOOK_URL_HERE':
         print('Webhook URL not set, skipping Discord notification.')
         return
     data = {"content": message}
@@ -54,8 +54,8 @@ def log_run(result, message=""):
 
 def test_luxmed():
     options = webdriver.ChromeOptions()
-    options.add_argument('--headless')
-    options.add_argument('--disable-gpu')
+    # options.add_argument('--headless')
+    # options.add_argument('--disable-gpu')
     options.add_argument('--window-size=1909,1030')
     driver = webdriver.Chrome(service=Service(ChromeDriverManager().install()), options=options)
     wait = WebDriverWait(driver, 20)
@@ -74,6 +74,8 @@ def test_luxmed():
         # Step 3: Type password
         password_input = wait.until(EC.presence_of_element_located((By.ID, "Password")))
         password_input.clear()
+        if not KATYA_PASS:
+            raise Exception("KATYA_PASS environment variable is not set")
         password_input.send_keys(KATYA_PASS)
 
         # Step 4: Click login
@@ -88,7 +90,7 @@ def test_luxmed():
         book_btn.click()
         print("Before video cons")
         # Step 6: Click 'Psychiatrist consultation - first visit'
-        psychiatrist_btn = wait.until(EC.element_to_be_clickable((By.XPATH, "//div[contains(@class, 'recent-search-parameters-box')]/div/button[contains(text(), 'Video consultation - Psychiatrist consultation – first visit')]")))
+        psychiatrist_btn = wait.until(EC.element_to_be_clickable((By.XPATH, "//div[contains(@class, 'recent-search-parameters-box')]/div/button[contains(text(), 'Gastroenterologist consultation')]")))
         psychiatrist_btn.click()
 
         print("After video cons")

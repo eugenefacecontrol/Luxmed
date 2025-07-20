@@ -142,3 +142,65 @@
 2025-06-24T21:17:23.682073 | FAIL
 2025-06-24T21:18:11.697046 | FAIL
 2025-06-24T22:06:31.158453 | FAIL | //div[@class='days']/div/div[2]/div[2]/span[text() != '0'][text() != 'x']
+2025-06-24T22:08:31.341602 | FAIL
+2025-06-24T22:09:40.471353 | FAIL | //div[@class='days']/div/div[2]/div[2]/span[text() != '0'][text() != 'x']
+2025-06-24T22:10:14.601925 | FAIL | //div[@class='days']/div/div[2]/div[2]/span[text() != '0'][text() != 'x']
+2025-06-24T22:15:18.087386 | FAIL | //div[@class='days']/div/div[2]/div[2]/span[text() != '0'][text() != 'x']
+2025-06-24T22:20:28.462393 | FAIL
+2025-06-24T22:25:28.977168 | FAIL
+2025-06-24T22:30:19.512662 | FAIL | //div[@class='days']/div/div[2]/div[2]/span[text() != '0'][text() != 'x']
+2025-06-24T22:35:19.769428 | FAIL | //div[@class='days']/div/div[2]/div[2]/span[text() != '0'][text() != 'x']
+2025-06-24T22:40:18.518537 | FAIL | //div[@class='days']/div/div[2]/div[2]/span[text() != '0'][text() != 'x']
+2025-06-24T22:45:16.989523 | FAIL | //div[@class='days']/div/div[2]/div[2]/span[text() != '0'][text() != 'x']
+2025-06-24T22:50:16.255421 | FAIL | //div[@class='days']/div/div[2]/div[2]/span[text() != '0'][text() != 'x']
+2025-06-25T12:15:53.021606 | FAIL | //div[@class='days']/div/div[2]/div[2]/span[text() != '0'][text() != 'x']
+2025-06-25T12:20:22.279611 | FAIL | //div[@class='days']/div/div[2]/div[2]/span[text() != '0'][text() != 'x']
+2025-06-25T12:25:16.433940 | FAIL | //div[@class='days']/div/div[2]/div[2]/span[text() != '0'][text() != 'x']
+2025-06-25T12:30:18.931345 | FAIL | //div[@class='days']/div/div[2]/div[2]/span[text() != '0'][text() != 'x']
+2025-06-25T12:35:14.224053 | FAIL | //div[@class='days']/div/div[2]/div[2]/span[text() != '0'][text() != 'x']
+2025-06-25T12:40:23.883249 | FAIL | //div[@class='days']/div/div[2]/div[2]/span[text() != '0'][text() != 'x']
+2025-06-25T12:45:15.622494 | FAIL | //div[@class='days']/div/div[2]/div[2]/span[text() != '0'][text() != 'x']
+2025-06-25T12:50:19.558699 | FAIL | //div[@class='days']/div/div[2]/div[2]/span[text() != '0'][text() != 'x']
+2025-06-25T12:55:14.713417 | FAIL | //div[@class='days']/div/div[2]/div[2]/span[text() != '0'][text() != 'x']
+2025-06-25T13:00:17.242046 | FAIL | //div[@class='days']/div/div[2]/div[2]/span[text() != '0'][text() != 'x']
+2025-06-25T13:05:16.094505 | FAIL | //div[@class='days']/div/div[2]/div[2]/span[text() != '0'][text() != 'x']
+2025-06-25T13:10:22.777883 | FAIL | //div[@class='days']/div/div[2]/div[2]/span[text() != '0'][text() != 'x']
+2025-06-25T13:15:13.943646 | FAIL | //div[@class='days']/div/div[2]/div[2]/span[text() != '0'][text() != 'x']
+2025-06-25T13:20:15.865451 | FAIL | //div[@class='days']/div/div[2]/div[2]/span[text() != '0'][text() != 'x']
+2025-06-25T13:25:15.015993 | FAIL | //div[@class='days']/div/div[2]/div[2]/span[text() != '0'][text() != 'x']
+2025-06-25T13:30:15.127047 | FAIL
+2025-06-25T13:35:15.923313 | FAIL
+2025-06-25T13:40:17.640995 | FAIL | //div[@class='days']/div/div[2]/div[2]/span[text() != '0'][text() != 'x']
+2025-06-25T13:45:18.232831 | FAIL
+2025-06-25T13:50:15.586067 | FAIL | //div[@class='days']/div/div[2]/div[2]/span[text() != '0'][text() != 'x']
+2025-06-25T13:55:15.407818 | FAIL | //div[@class='days']/div/div[2]/div[2]/span[text() != '0'][text() != 'x']
+2025-06-25T14:00:17.519363 | FAIL
+2025-06-25T14:05:21.044718 | FAIL | //div[@class='days']/div/div[2]/div[2]/span[text() != '0'][text() != 'x']
+2025-06-25T14:10:19.541212 | FAIL
+2025-06-25T14:15:15.837302 | FAIL | //div[@class='days']/div/div[2]/div[2]/span[text() != '0'][text() != 'x']
+2025-06-25T14:20:18.318732 | FAIL | //div[@class='days']/div/div[2]/div[2]/span[text() != '0'][text() != 'x']
+2025-06-25T14:25:15.150749 | FAIL | //div[@class='days']/div/div[2]/div[2]/span[text() != '0'][text() != 'x']
+2025-06-25T14:40:33.621852 | FAIL | //div[@class='days']/div/div[2]/div[2]/span[text() != '0'][text() != 'x']
+2025-06-25T14:45:19.121849 | FAIL
+2025-06-25T14:50:16.985983 | FAIL | //div[@class='days']/div/div[2]/div[2]/span[text() != '0'][text() != 'x']
+2025-06-25T14:55:16.008710 | FAIL
+2025-06-25T15:00:32.418557 | FAIL
+2025-06-25T15:05:22.311710 | FAIL
+2025-06-25T15:10:24.850214 | FAIL
+2025-06-25T15:15:23.861236 | FAIL
+2025-06-25T15:20:25.969641 | FAIL | //div[@class='days']/div/div[2]/div[2]/span[text() != '0'][text() != 'x']
+2025-06-25T15:25:23.471630 | FAIL | //div[@class='days']/div/div[2]/div[2]/span[text() != '0'][text() != 'x']
+2025-06-25T15:30:17.384758 | FAIL | //div[@class='days']/div/div[2]/div[2]/span[text() != '0'][text() != 'x']
+2025-06-25T15:35:22.972849 | FAIL | //div[@class='days']/div/div[2]/div[2]/span[text() != '0'][text() != 'x']
+2025-06-25T15:40:24.658851 | FAIL | //div[@class='days']/div/div[2]/div[2]/span[text() != '0'][text() != 'x']
+2025-06-25T15:45:18.579013 | FAIL
+2025-06-25T15:50:17.431655 | FAIL | //div[@class='days']/div/div[2]/div[2]/span[text() != '0'][text() != 'x']
+2025-06-25T15:55:18.858261 | FAIL
+2025-06-25T16:00:19.211395 | FAIL | //div[@class='days']/div/div[2]/div[2]/span[text() != '0'][text() != 'x']
+2025-06-25T16:05:28.483530 | FAIL
+2025-06-25T16:10:22.965811 | FAIL | //div[@class='days']/div/div[2]/div[2]/span[text() != '0'][text() != 'x']
+2025-06-25T16:15:47.893889 | FAIL
+2025-06-25T16:20:28.771836 | FAIL | //div[@class='days']/div/div[2]/div[2]/span[text() != '0'][text() != 'x']
+2025-06-25T16:25:35.547079 | FAIL | //div[@class='days']/div/div[2]/div[2]/span[text() != '0'][text() != 'x']
+2025-07-20T19:18:18.741992 | FAIL
+2025-07-20T19:22:33.863636 | FAIL | //div[@class='days']/div/div[2]/div[2]/span[text() != '0'][text() != 'x']

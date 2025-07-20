@@ -1,0 +1,161 @@
+{
+  "id": "1cafa8e3-1bab-40cd-8aba-8ca2143fbd54",
+  "version": "2.0",
+  "name": "Brokul",
+  "url": "https://chatgpt.com/",
+  "tests": [{
+    "id": "0e3645a1-5a9c-4b8e-abce-bf194100c57f",
+    "name": "Get the brokul info",
+    "commands": [{
+      "id": "980a674f-de91-4eea-8ee2-81e47756b98f",
+      "comment": "",
+      "command": "open",
+      "target": "/",
+      "targets": [],
+      "value": ""
+    }, {
+      "id": "ed94adaf-fb85-4d80-a3ff-8f3b28ad38aa",
+      "comment": "",
+      "command": "setWindowSize",
+      "target": "1920x1032",
+      "targets": [],
+      "value": ""
+    }, {
+      "id": "4b59e31c-3df1-4f1d-81bb-cbeb801a3daf",
+      "comment": "",
+      "command": "click",
+      "target": "css=.header__customer-link-text",
+      "targets": [
+        ["css=.header__customer-link-text", "css:finder"],
+        ["xpath=//body[@id='html-body']/div[4]/header/div/div/div[3]/div/div[2]/a/span", "xpath:idRelative"],
+        ["xpath=//div[3]/div/div[2]/a/span", "xpath:position"],
+        ["xpath=//span[contains(.,'Zaloguj się')]", "xpath:innerText"]
+      ],
+      "value": ""
+    }, {
+      "id": "447044b4-b683-40c0-bfcd-167aec289241",
+      "comment": "",
+      "command": "type",
+      "target": "name=login[username]",
+      "targets": [
+        ["name=login[username]", "name"],
+        ["css=.input > #email", "css:finder"],
+        ["xpath=//input[@id='email']", "xpath:attributes"],
+        ["xpath=//form[@id='login-form']/fieldset/div/input", "xpath:idRelative"],
+        ["xpath=//fieldset/div/input", "xpath:position"]
+      ],
+      "value": "yauhenisheima@gmail.com"
+    }, {
+      "id": "c070fc1d-eb36-4e33-aac7-9937a8f814fa",
+      "comment": "",
+      "command": "type",
+      "target": "id=password",
+      "targets": [
+        ["id=password", "id"],
+        ["name=login[password]", "name"],
+        ["css=#password", "css:finder"],
+        ["xpath=//input[@id='password']", "xpath:attributes"],
+        ["xpath=//form[@id='login-form']/fieldset/div[2]/input", "xpath:idRelative"],
+        ["xpath=//div[2]/input", "xpath:position"]
+      ],
+      "value": "fimSux-4xasru-joxxow"
+    }, {
+      "id": "22639d4f-f1a2-4a6a-a332-f3c0c1cdfe28",
+      "comment": "",
+      "command": "click",
+      "target": "css=.account-form__button",
+      "targets": [
+        ["css=.account-form__button", "css:finder"],
+        ["xpath=//button[@type='submit']", "xpath:attributes"],
+        ["xpath=//form[@id='login-form']/fieldset/div[4]/button", "xpath:idRelative"],
+        ["xpath=//div[4]/button", "xpath:position"]
+      ],
+      "value": ""
+    }, {
+      "id": "9910da35-0b84-4548-8fe8-1dd5896fe0f5",
+      "comment": "",
+      "command": "click",
+      "target": "linkText=Sprawdź menu",
+      "targets": [
+        ["linkText=Sprawdź menu", "linkText"],
+        ["css=.nav:nth-child(3) > a", "css:finder"],
+        ["xpath=//a[contains(text(),'Sprawdź menu')]", "xpath:link"],
+        ["xpath=//div[@id='dashboard-navigation']/div/div[2]/ul/li[3]/a", "xpath:idRelative"],
+        ["xpath=//a[contains(@href, 'https://dietyodbrokula.pl/customer/diets/menu/')]", "xpath:href"],
+        ["xpath=//div[2]/ul/li[3]/a", "xpath:position"],
+        ["xpath=//a[contains(.,'Sprawdź menu')]", "xpath:innerText"]
+      ],
+      "value": ""
+    }]
+  }, {
+    "id": "b7d0cd2e-f26c-41c6-91f6-21945cfb0102",
+    "name": "Open chat gpt",
+    "commands": [{
+      "id": "c173b9a8-70a0-49c4-b2d1-b2ec25d584a4",
+      "comment": "",
+      "command": "open",
+      "target": "https://chatgpt.com/",
+      "targets": [],
+      "value": ""
+    }, {
+      "id": "94208764-9040-4f48-8dd5-e12803cb0583",
+      "comment": "",
+      "command": "setWindowSize",
+      "target": "1920x1032",
+      "targets": [],
+      "value": ""
+    }, {
+      "id": "20712a33-557a-4b37-b62a-c5d3aec9d463",
+      "comment": "",
+      "command": "click",
+      "target": "css=.flex > .btn-primary > .flex",
+      "targets": [
+        ["css=.flex > .btn-primary > .flex", "css:finder"],
+        ["xpath=//div[@id='conversation-header-actions']/div/div/button/div", "xpath:idRelative"],
+        ["xpath=//div[3]/div/div/div/button/div", "xpath:position"]
+      ],
+      "value": ""
+    }, {
+      "id": "83573ad3-4e35-4377-a67a-1b51f67113ae",
+      "comment": "",
+      "command": "click",
+      "target": "xpath=//form[@action='/log-in'][not(@hidden)]/div[2]/div[2]/button[1]",
+      "targets": [
+        ["css=.\\_leftAlign_625o4_82:nth-child(1)", "css:finder"],
+        ["xpath=(//button[@name='intent'])[2]", "xpath:attributes"],
+        ["xpath=//form[@id=':r1:']/div[2]/div[2]/button", "xpath:idRelative"],
+        ["xpath=//div[2]/div[2]/button", "xpath:position"],
+        ["xpath=//button[contains(.,'Продолжить с Google')]", "xpath:innerText"]
+      ],
+      "value": ""
+    }, {
+      "id": "d38963fe-551b-4941-adfd-5c131a6e2930",
+      "comment": "",
+      "command": "click",
+      "target": "css=div[data-email='eugenefacecontrol@gmail.com']",
+      "targets": [
+        ["css=.aZvCDf:nth-child(2) .pGzURd", "css:finder"],
+        ["xpath=//body[@id='yDmH0d']/div/div/div[2]/div/div/div[2]/div/div/div/form/span/section/div/div/div/div/ul/li[2]/div/div/div/div[2]/div", "xpath:idRelative"],
+        ["xpath=//li[2]/div/div/div/div[2]/div", "xpath:position"]
+      ],
+      "value": ""
+    }, {
+      "id": "e9406b6c-a31a-4a35-91a7-d1fdcf596fa4",
+      "comment": "",
+      "command": "type",
+      "target": "css=p[class='placeholder']",
+      "targets": [],
+      "value": "Hello"
+    }]
+  }],
+  "suites": [{
+    "id": "3a6be496-b56e-4163-bf06-6b6d8ee4c9e0",
+    "name": "Default Suite",
+    "persistSession": false,
+    "parallel": false,
+    "timeout": 300,
+    "tests": ["0e3645a1-5a9c-4b8e-abce-bf194100c57f"]
+  }],
+  "urls": ["https://dietyodbrokula.pl/", "https://chatgpt.com/"],
+  "plugins": []
+}

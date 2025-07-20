@@ -1,0 +1,37 @@
+2025-06-27T23:47:27.113774 | FAIL
+2025-06-27T23:48:44.724619 | FAIL
+2025-07-13T00:02:14.703842 | FAIL
+2025-07-13T00:14:46.067066 | FAIL | Redirected to login page
+2025-07-13T00:15:24.631105 | FAIL | Selenium: Message: invalid session id
+Stacktrace:
+	GetHandleVerifier [0x0xaa44a3+62419]
+	GetHandleVerifier [0x0xaa44e4+62484]
+	(No symbol) [0x0x8e1f90]
+	(No symbol) [0x0x91db48]
+	(No symbol) [0x0x94f326]
+	(No symbol) [0x0x94af15]
+	(No symbol) [0x0x94a496]
+	(No symbol) [0x0x8b3a45]
+	(No symbol) [0x0x8b3f9e]
+	(No symbol) [0x0x8b442d]
+	GetHandleVerifier [0x0xd14793+2619075]
+	GetHandleVerifier [0x0xd0fbaa+2599642]
+	GetHandleVerifier [0x0xacb04a+221050]
+	GetHandleVerifier [0x0xabb2c8+156152]
+	GetHandleVerifier [0x0xac1c7d+183213]
+	(No symbol) [0x0x8b3710]
+	(No symbol) [0x0x8b2f1d]
+	GetHandleVerifier [0x0xe48aec+3881500]
+	BaseThreadInitThunk [0x0x76c95d49+25]
+	RtlInitializeExceptionChain [0x0x773dd09b+107]
+	RtlGetAppContainerNamedObjectPath [0x0x773dd021+561]
+
+2025-07-13T12:53:46.250076 | FAIL | Redirected to login page
+2025-07-13T12:54:37.262877 | PASS | Selenium URL: https://dietyodbrokula.pl/customer/account/login/referer/aHR0cHM6Ly9kaWV0eW9kYnJva3VsYS5wbC9jdXN0b21lci9hY2NvdW50L2luZGV4Lw~~/
+2025-07-13T13:04:43.829821 | FAIL | Redirected to login page
+2025-07-13T13:05:17.782360 | PASS | Selenium URL: https://dietyodbrokula.pl/customer/account/login/referer/aHR0cHM6Ly9kaWV0eW9kYnJva3VsYS5wbC9jdXN0b21lci9hY2NvdW50L2luZGV4Lw~~/
+2025-07-13T13:11:25.753231 | FAIL | Redirected to login page
+2025-07-13T13:26:35.857770 | PASS | Selenium URL: https://dietyodbrokula.pl/customer/account/login/referer/aHR0cHM6Ly9kaWV0eW9kYnJva3VsYS5wbC9jdXN0b21lci9hY2NvdW50L2luZGV4Lw~~/
+2025-07-14T22:39:53.573066 | PARTIAL | Login successful but menu access failed
+2025-07-14T22:41:13.369983 | FAIL | Login failed
+2025-07-14T22:42:16.820765 | FAIL | Login failed
