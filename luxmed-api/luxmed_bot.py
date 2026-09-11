@@ -190,7 +190,8 @@ class Telegram:
                 },
                 timeout=20,
             )
-            response.raise_for_status()
+            if not response.ok:
+                raise RuntimeError(f"Telegram sendMessage failed for {target_id}: HTTP {response.status_code}; {response.text[:500]}")
 
     def poll_commands(self) -> list[str]:
         response = requests.get(
@@ -198,7 +199,8 @@ class Telegram:
             params={"offset": self.offset, "timeout": 0, "allowed_updates": json.dumps(["message"])},
             timeout=20,
         )
-        response.raise_for_status()
+        if not response.ok:
+            raise RuntimeError(f"Telegram getUpdates failed: HTTP {response.status_code}; {response.text[:500]}")
 
         commands: list[str] = []
         for update in response.json().get("result", []):
