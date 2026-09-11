@@ -82,6 +82,8 @@ The bot sends an inline button menu on startup and on `/help`. Buttons trigger t
 - `/interval <seconds>` (for example `/interval 3600`)
 - `/live [seconds]` (enables status after every check; optionally also changes interval)
 - `/live_off`
+- `/notify_once`
+- `/notify_every`
 - `/menu`
 - `/set_cookie <full Cookie header>`
 - `/help`

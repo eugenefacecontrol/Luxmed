@@ -643,12 +643,20 @@ def main_menu_markup() -> dict[str, Any]:
                 {"text": "Config", "callback_data": "/config"},
             ],
             [
+                {"text": "Interval 1m", "callback_data": "/interval 60"},
+                {"text": "Interval 1h", "callback_data": "/interval 3600"},
+            ],
+            [
                 {"text": "Live 1h", "callback_data": "/live 3600"},
                 {"text": "Live off", "callback_data": "/live_off"},
             ],
             [
-                {"text": "Interval 1h", "callback_data": "/interval 3600"},
+                {"text": "Notify once", "callback_data": "/notify_once"},
+                {"text": "Notify every", "callback_data": "/notify_every"},
+            ],
+            [
                 {"text": "Refresh auth", "callback_data": "/login"},
+                {"text": "Menu", "callback_data": "/menu"},
             ],
         ]
     }
@@ -664,6 +672,8 @@ def help_text() -> str:
         "/interval 3600 - set poll interval\n"
         "/live 3600 - enable live status and set interval\n"
         "/live_off - disable live status\n"
+        "/notify_once - notify only when results change\n"
+        "/notify_every - notify on every matching check\n"
         "/login - refresh Luxmed auth"
     )
 
@@ -679,6 +689,11 @@ def active_poll_interval(settings: Settings, state: StateStore) -> int:
         return max(10, int(raw))
     except ValueError:
         return settings.poll_interval_seconds
+
+
+def active_notify_on_every_match(settings: Settings, state: StateStore) -> bool:
+    raw = state.get("notify_on_every_match", "true" if settings.notify_on_every_match else "false")
+    return raw.strip().lower() in {"1", "true", "yes", "y", "on"}
 
 
 def set_poll_interval(state: StateStore, seconds: int) -> None:
@@ -764,6 +779,12 @@ def handle_command(
     elif command in {"/live_off", "/stop_live"}:
         state.set("live_status_enabled", "false")
         telegram.send("Live status disabled.")
+    elif command in {"/notify_once", "/notify_changed"}:
+        state.set("notify_on_every_match", "false")
+        telegram.send("Notify mode: only when matching results change.", reply_markup=main_menu_markup())
+    elif command in {"/notify_every", "/notify_always"}:
+        state.set("notify_on_every_match", "true")
+        telegram.send("Notify mode: every check with matching results.", reply_markup=main_menu_markup())
     elif command == "/config":
         telegram.send(
             "Luxmed monitor config:\n"
@@ -772,6 +793,7 @@ def handle_command(
             f"Auto login: <code>{'on' if settings.luxmed_login and settings.luxmed_password else 'off'}</code>\n"
             f"Jobs: <code>{len(settings.jobs)}</code>\n"
             f"Live status: <code>{'on' if state_bool(state, 'live_status_enabled') else 'off'}</code>\n"
+            f"Notify every match: <code>{'on' if active_notify_on_every_match(settings, state) else 'off'}</code>\n"
             f"State file: <code>{html.escape(settings.state_file)}</code>"
         )
     elif command == "/menu":
@@ -880,7 +902,7 @@ def main() -> int:
                 if not matches:
                     continue
                 current_signature = signature(matches)
-                if settings.notify_on_every_match or current_signature != last_signatures.get(job.name):
+                if active_notify_on_every_match(settings, state) or current_signature != last_signatures.get(job.name):
                     telegram.send(format_match_message(matches, settings, job))
                     last_signatures[job.name] = current_signature
         except requests.HTTPError as exc:
