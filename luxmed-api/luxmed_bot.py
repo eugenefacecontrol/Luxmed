@@ -203,7 +203,7 @@ class Telegram:
             timeout=20,
         )
         if not response.ok:
-            raise RuntimeError(f"Telegram answerCallbackQuery failed: HTTP {response.status_code}; {response.text[:500]}")
+            LOGGER.warning("Telegram answerCallbackQuery failed: HTTP %s; %s", response.status_code, response.text[:500])
 
     def poll_commands(self) -> list[str]:
         response = requests.get(
