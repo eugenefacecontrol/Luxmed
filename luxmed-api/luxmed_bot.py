@@ -840,6 +840,33 @@ def handle_command(
     return None
 
 
+def process_telegram_commands(
+    settings: Settings,
+    state: StateStore,
+    telegram: Telegram,
+    auth_message: str,
+    last_status: str,
+) -> str:
+    for command_text in telegram.poll_commands():
+        command = command_text.split(maxsplit=1)[0].lower()
+        if command == "/check":
+            cookie_header = active_cookie_header(settings, state)
+            results = check_all_jobs(settings, cookie_header)
+            checked_at = datetime.now(timezone.utc).isoformat(timespec="seconds")
+            last_status = format_live_status(checked_at, results, active_poll_interval(settings, state), "manual-check")
+            sent_match = False
+            for job, _total, matches in results:
+                if matches:
+                    telegram.send(format_match_message(matches, settings, job))
+                    sent_match = True
+            if not sent_match:
+                summary = ", ".join(f"{job.name}: terms={total}, matches=0" for job, total, _ in results)
+                telegram.send(f"Manual check: no matching appointment windows right now.\n{html.escape(summary)}")
+        else:
+            handle_command(command_text, settings, state, telegram, auth_message, last_status)
+    return last_status
+
+
 def main() -> int:
     logging.basicConfig(level=os.getenv("LOG_LEVEL", "INFO"), format="%(asctime)s %(levelname)s %(message)s")
     settings = Settings.from_env()
@@ -867,22 +894,8 @@ def main() -> int:
                     telegram.send(f"<b>Luxmed auth warning</b>\n{html.escape(auth_message)}")
                     last_auth_warning_key = auth_key
 
-            for command_text in telegram.poll_commands():
-                command = command_text.split(maxsplit=1)[0].lower()
-                if command == "/check":
-                    cookie_header = active_cookie_header(settings, state)
-                    results = check_all_jobs(settings, cookie_header)
-                    sent_match = False
-                    for job, total, matches in results:
-                        if matches:
-                            telegram.send(format_match_message(matches, settings, job))
-                            sent_match = True
-                    if not sent_match:
-                        summary = ", ".join(f"{job.name}: terms={total}, matches=0" for job, total, _ in results)
-                        telegram.send(f"Manual check: no matching appointment windows right now.\n{html.escape(summary)}")
-                else:
-                    handle_command(command_text, settings, state, telegram, auth_message, last_status)
-                interval = active_poll_interval(settings, state)
+            last_status = process_telegram_commands(settings, state, telegram, auth_message, last_status)
+            interval = active_poll_interval(settings, state)
 
             if auth_key.startswith(("missing", "invalid", "expired")):
                 now = datetime.now(timezone.utc).isoformat(timespec="seconds")
@@ -926,10 +939,20 @@ def main() -> int:
             LOGGER.exception(last_status)
 
         interval = active_poll_interval(settings, state)
-        for _ in range(interval):
+        second = 0
+        while second < interval:
             if STOP:
                 break
+            if second % 2 == 0:
+                try:
+                    cookie_header = active_cookie_header(settings, state)
+                    _auth_key, auth_message = auth_token_status(cookie_header, settings.auth_expiry_warn_minutes)
+                    last_status = process_telegram_commands(settings, state, telegram, auth_message, last_status)
+                    interval = active_poll_interval(settings, state)
+                except Exception:
+                    LOGGER.exception("Telegram command polling failed during wait.")
             time.sleep(1)
+            second += 1
 
     telegram.send("Luxmed monitor stopped.")
     return 0
