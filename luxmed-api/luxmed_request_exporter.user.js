@@ -163,10 +163,15 @@
   }
 
   function toEnv(config) {
-    return [
-      `LUXMED_REQUEST_URL='${envQuote(config.requestUrl)}'`,
-      `LUXMED_COOKIE_HEADER='${envQuote(config.cookieHeader)}'`,
-    ].join("\n");
+    const lines = [`LUXMED_REQUEST_URL='${envQuote(config.requestUrl)}'`];
+    if (config.cookieHeader) {
+      lines.push(
+        "",
+        "# Optional fallback only. Prefer LUXMED_LOGIN/LUXMED_PASSWORD; uncomment only if Luxmed blocks login/fetch without browser session cookies.",
+        `# LUXMED_COOKIE_HEADER='${envQuote(config.cookieHeader)}'`
+      );
+    }
+    return lines.join("\n");
   }
 
   function saveRequest(url, source = "network", responsePayload = null) {
@@ -222,7 +227,7 @@
       : "\n# Captured terms: not available yet; click Search again if you want response summary.";
     const output = `${toEnv(config)}${responseNote}\n\n# JSON backup:\n# ${JSON.stringify(config)}`;
     GM_setClipboard(output, "text");
-    alert(`Luxmed URL/cookies copied. Terms in last response: ${config.responseSummary?.termsCount ?? "unknown"}. Replace only LUXMED_* values in .env.`);
+    alert(`Luxmed request URL copied. Terms in last response: ${config.responseSummary?.termsCount ?? "unknown"}. Cookie header is included only as a commented fallback.`);
   }
 
   function renderButton(config) {
@@ -257,8 +262,8 @@
         : "Copy Luxmed env (check auth)"
       : "Luxmed: click Search";
     button.title = hasAuth
-      ? "Copies Docker .env values for Luxmed monitor"
-      : "Authorization-Token was not visible; DevTools Cookie header may be needed";
+        ? "Copies Docker .env request URL for Luxmed monitor"
+        : "Cookie header is optional fallback; login/password should generate Authorization-Token";
   }
 
   const originalFetch = window.fetch;

@@ -9,12 +9,12 @@ This project monitors Luxmed Patient Portal appointment search results and sends
 3. Open appointment search results.
 4. If the exporter button says `Luxmed: click Search`, click Search in Luxmed again so the script can capture the `terms/index` request.
 5. Click `Copy Luxmed VM env` or press `Alt+L`.
-6. Replace only `LUXMED_REQUEST_URL` and `LUXMED_COOKIE_HEADER` in `.env` on the VM.
+6. Replace `LUXMED_REQUEST_URL` in `.env` on the VM. Keep `LUXMED_COOKIE_HEADER` empty unless Luxmed blocks login/fetch without browser session cookies.
 7. Run with Docker Compose.
 
 ## Important Inputs
 
-The bot can generate `Authorization-Token` itself when `LUXMED_LOGIN` and `LUXMED_PASSWORD` are configured. The exporter still copies the visible cookie header because Luxmed may require session or Incapsula anti-bot cookies.
+The bot can generate `Authorization-Token` itself when `LUXMED_LOGIN` and `LUXMED_PASSWORD` are configured. The exporter copies the browser cookie header only as a commented fallback because Luxmed may require session or Incapsula anti-bot cookies on some requests.
 
 The bot decodes `Authorization-Token`; when it is expired or will expire within `AUTH_EXPIRY_WARN_MINUTES`, it calls `/PatientPortal/Account/LogIn`, saves the new token in `STATE_FILE`, and continues polling.
 
@@ -83,6 +83,24 @@ cp .env.example .env
 nano .env
 docker compose up -d --build
 docker compose logs -f
+```
+
+Local login/API smoke test without Telegram:
+
+```bash
+cd /Users/yauhenisheima/Sources/Luxmed/luxmed-api
+cp .env.example .env
+${EDITOR:-nano} .env
+docker compose build
+docker compose run --rm --entrypoint python luxmed-bot luxmed_check.py
+```
+
+For this local check, `.env` needs at least:
+
+```env
+LUXMED_LOGIN=your-login
+LUXMED_PASSWORD=your-password
+LUXMED_REQUEST_URL='https://portalpacjenta.luxmed.pl/PatientPortal/NewPortal/terms/index?...'
 ```
 
 Update after copying a new version:

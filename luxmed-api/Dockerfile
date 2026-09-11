@@ -8,6 +8,6 @@ WORKDIR /app
 COPY requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
 
-COPY luxmed_bot.py .
+COPY luxmed_bot.py luxmed_check.py .
 
 CMD ["python", "luxmed_bot.py"]
