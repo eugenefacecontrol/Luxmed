@@ -111,17 +111,8 @@
 
   function toEnv(config) {
     return [
-      "TELEGRAM_BOT_TOKEN=",
-      "TELEGRAM_CHAT_ID=",
-      "TELEGRAM_CHAT_IDS=",
-      "TELEGRAM_USER_IDS=",
       `LUXMED_REQUEST_URL='${envQuote(config.requestUrl)}'`,
       `LUXMED_COOKIE_HEADER='${envQuote(config.cookieHeader)}'`,
-      "LUXMED_DOCTOR_REGEX=",
-      "LUXMED_MATCH_TEXT_REGEX=",
-      "POLL_INTERVAL_SECONDS=60",
-      "NOTIFY_ON_EVERY_MATCH=false",
-      "AUTH_EXPIRY_WARN_MINUTES=2",
     ].join("\n");
   }
 
@@ -142,7 +133,7 @@
     const config = JSON.parse(raw);
     const output = `${toEnv(config)}\n\n# JSON backup:\n# ${JSON.stringify(config)}`;
     GM_setClipboard(output, "text");
-    alert("Luxmed .env copied. Paste it on the VM.");
+    alert("Luxmed URL/cookies copied. Replace only LUXMED_* values in .env.");
   }
 
   function renderButton(config) {

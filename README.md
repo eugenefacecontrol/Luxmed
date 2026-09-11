@@ -8,7 +8,7 @@ This project monitors Luxmed Patient Portal appointment search results and sends
 2. Install `luxmed_request_exporter.user.js` in Tampermonkey.
 3. Open appointment search results.
 4. Click `Copy Luxmed VM env` or press `Alt+L`.
-5. Paste the copied env values into `.env` on the VM.
+5. Replace only `LUXMED_REQUEST_URL` and `LUXMED_COOKIE_HEADER` in `.env` on the VM.
 6. Run with Docker Compose.
 
 ## Important Inputs
@@ -37,7 +37,14 @@ The search parameters are taken from the captured `LUXMED_REQUEST_URL`. For the 
 - `/check`
 - `/auth`
 - `/config`
+- `/set_cookie <full Cookie header>`
+- `/set_auth <Authorization-Token>`
+- `/set_xsrf <XSRF-TOKEN>`
+- `/set_refresh <RefreshToken>`
+- `/set_lx <LXToken>`
 - `/help`
+
+Runtime token updates from Telegram are saved to `STATE_FILE` (`/data/luxmed_state.json` in Docker). This lets the bot continue after auth expiry without editing `.env` or restarting the container.
 
 ## Copy And Run
 
