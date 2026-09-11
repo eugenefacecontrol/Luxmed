@@ -45,19 +45,69 @@ def env_list(*names: str) -> list[str]:
 
 
 @dataclass
+class SearchJob:
+    name: str
+    request_url: str
+    doctor_regex: str | None = None
+    clinic_regex: str | None = None
+    time_from: str | None = None
+    time_to: str | None = None
+    match_text_regex: str | None = None
+
+
+def parse_jobs_from_env() -> list[SearchJob]:
+    jobs_json = env("LUXMED_JOBS_JSON")
+    if jobs_json:
+        data = json.loads(jobs_json)
+        if not isinstance(data, list):
+            raise RuntimeError("LUXMED_JOBS_JSON must be a JSON array.")
+
+        jobs: list[SearchJob] = []
+        for index, item in enumerate(data, start=1):
+            if not isinstance(item, dict):
+                raise RuntimeError(f"LUXMED_JOBS_JSON item {index} must be an object.")
+            request_url = str(item.get("request_url") or item.get("url") or "").strip()
+            if not request_url:
+                raise RuntimeError(f"LUXMED_JOBS_JSON item {index} is missing request_url.")
+            jobs.append(
+                SearchJob(
+                    name=str(item.get("name") or f"job-{index}"),
+                    request_url=request_url,
+                    doctor_regex=item.get("doctor_regex") or None,
+                    clinic_regex=item.get("clinic_regex") or None,
+                    time_from=item.get("time_from") or None,
+                    time_to=item.get("time_to") or None,
+                    match_text_regex=item.get("match_text_regex") or None,
+                )
+            )
+        return jobs
+
+    request_url = env("LUXMED_REQUEST_URL")
+    if not request_url:
+        raise RuntimeError("Missing LUXMED_REQUEST_URL or LUXMED_JOBS_JSON.")
+
+    return [
+        SearchJob(
+            name=env("LUXMED_JOB_NAME", "default") or "default",
+            request_url=request_url,
+            doctor_regex=env("LUXMED_DOCTOR_REGEX") or None,
+            clinic_regex=env("LUXMED_CLINIC_REGEX") or None,
+            time_from=env("LUXMED_TIME_FROM") or None,
+            time_to=env("LUXMED_TIME_TO") or None,
+            match_text_regex=env("LUXMED_MATCH_TEXT_REGEX") or None,
+        )
+    ]
+
+
+@dataclass
 class Settings:
     telegram_bot_token: str
     telegram_target_ids: list[str]
     luxmed_login: str | None
     luxmed_password: str | None
-    luxmed_request_url: str
     luxmed_cookie_header: str | None
     luxmed_base_uri: str
-    doctor_regex: str | None
-    clinic_regex: str | None
-    time_from: str | None
-    time_to: str | None
-    match_text_regex: str | None
+    jobs: list[SearchJob]
     poll_interval_seconds: int
     notify_on_every_match: bool
     request_timeout_seconds: int
@@ -75,14 +125,9 @@ class Settings:
             telegram_target_ids=telegram_target_ids,
             luxmed_login=env("LUXMED_LOGIN") or None,
             luxmed_password=env("LUXMED_PASSWORD") or None,
-            luxmed_request_url=env("LUXMED_REQUEST_URL", required=True),
             luxmed_cookie_header=env("LUXMED_COOKIE_HEADER") or None,
             luxmed_base_uri=env("LUXMED_BASE_URI", "https://portalpacjenta.luxmed.pl"),
-            doctor_regex=env("LUXMED_DOCTOR_REGEX") or None,
-            clinic_regex=env("LUXMED_CLINIC_REGEX") or None,
-            time_from=env("LUXMED_TIME_FROM") or None,
-            time_to=env("LUXMED_TIME_TO") or None,
-            match_text_regex=env("LUXMED_MATCH_TEXT_REGEX") or None,
+            jobs=parse_jobs_from_env(),
             poll_interval_seconds=int(env("POLL_INTERVAL_SECONDS", "60")),
             notify_on_every_match=env_bool("NOTIFY_ON_EVERY_MATCH", False),
             request_timeout_seconds=int(env("REQUEST_TIMEOUT_SECONDS", "30")),
@@ -301,10 +346,10 @@ def login_luxmed(settings: Settings, cookie_header: str) -> str:
     return str(payload["token"])
 
 
-def fetch_luxmed(settings: Settings, cookie_header: str) -> tuple[Any, str]:
+def fetch_luxmed(settings: Settings, job: SearchJob, cookie_header: str) -> tuple[Any, str]:
     response = requests.get(
-        settings.luxmed_request_url,
-        headers=luxmed_headers(settings.luxmed_request_url, cookie_header),
+        job.request_url,
+        headers=luxmed_headers(job.request_url, cookie_header),
         timeout=settings.request_timeout_seconds,
     )
     response.raise_for_status()
@@ -396,38 +441,38 @@ def time_value(date_time: Any) -> str | None:
     return match.group(1) if match else None
 
 
-def matches_time_window(term: dict[str, Any], settings: Settings) -> bool:
-    if not settings.time_from and not settings.time_to:
+def matches_time_window(term: dict[str, Any], job: SearchJob) -> bool:
+    if not job.time_from and not job.time_to:
         return True
 
     value = time_value(term.get("dateTimeFrom"))
     if not value:
         return False
 
-    if settings.time_from and value < settings.time_from:
+    if job.time_from and value < job.time_from:
         return False
 
-    if settings.time_to and value > settings.time_to:
+    if job.time_to and value > job.time_to:
         return False
 
     return True
 
 
-def matches_filters(terms: list[dict[str, Any]], raw_text: str, settings: Settings) -> list[dict[str, Any]]:
+def matches_filters(terms: list[dict[str, Any]], raw_text: str, job: SearchJob) -> list[dict[str, Any]]:
     candidates = terms or []
 
-    if settings.doctor_regex:
-        pattern = re.compile(settings.doctor_regex, re.IGNORECASE)
+    if job.doctor_regex:
+        pattern = re.compile(job.doctor_regex, re.IGNORECASE)
         candidates = [term for term in candidates if pattern.search(term_search_text(term))]
 
-    if settings.clinic_regex:
-        pattern = re.compile(settings.clinic_regex, re.IGNORECASE)
+    if job.clinic_regex:
+        pattern = re.compile(job.clinic_regex, re.IGNORECASE)
         candidates = [term for term in candidates if pattern.search(term_search_text(term))]
 
-    candidates = [term for term in candidates if matches_time_window(term, settings)]
+    candidates = [term for term in candidates if matches_time_window(term, job)]
 
-    if settings.match_text_regex:
-        pattern = re.compile(settings.match_text_regex, re.IGNORECASE)
+    if job.match_text_regex:
+        pattern = re.compile(job.match_text_regex, re.IGNORECASE)
         candidates = [term for term in candidates if pattern.search(term_search_text(term))]
         if not candidates and pattern.search(raw_text):
             candidates = [{"rawText": raw_text[:1200]}]
@@ -458,12 +503,12 @@ def results_page_url(settings: Settings) -> str:
     return f"{settings.luxmed_base_uri.rstrip('/')}/PatientPortal/NewPortal/Page/Reservation/Results"
 
 
-def request_params(settings: Settings) -> dict[str, str]:
-    return dict(parse_qsl(urlparse(settings.luxmed_request_url).query, keep_blank_values=True))
+def request_params(job: SearchJob) -> dict[str, str]:
+    return dict(parse_qsl(urlparse(job.request_url).query, keep_blank_values=True))
 
 
-def term_reference_url(term: dict[str, Any], settings: Settings) -> str:
-    params = request_params(settings)
+def term_reference_url(term: dict[str, Any], settings: Settings, job: SearchJob) -> str:
+    params = request_params(job)
     slot_params = {
         "dateTimeFrom": term.get("dateTimeFrom"),
         "dateTimeTo": term.get("dateTimeTo"),
@@ -492,7 +537,7 @@ def term_identifier(term: dict[str, Any]) -> str:
     return "; ".join(parts)
 
 
-def format_term(term: dict[str, Any], settings: Settings) -> str:
+def format_term(term: dict[str, Any], settings: Settings, job: SearchJob) -> str:
     if term.get("rawText"):
         return html.escape(str(term["rawText"]))
 
@@ -501,7 +546,7 @@ def format_term(term: dict[str, Any], settings: Settings) -> str:
     when_from = term.get("dateTimeFrom") or "?"
     when_to = term.get("dateTimeTo") or "?"
     visit_type = "telemedicine" if term.get("isTelemedicine") else "facility"
-    slot_url = term_reference_url(term, settings)
+    slot_url = term_reference_url(term, settings, job)
 
     return (
         f"<b>{html.escape(str(when_from))} - {html.escape(str(when_to))}</b>\n"
@@ -512,20 +557,21 @@ def format_term(term: dict[str, Any], settings: Settings) -> str:
     )
 
 
-def format_match_message(matches: list[dict[str, Any]], settings: Settings) -> str:
-    params = request_params(settings)
+def format_match_message(matches: list[dict[str, Any]], settings: Settings, job: SearchJob) -> str:
+    params = request_params(job)
     service = params.get("serviceVariantId", "?")
     date_from = params.get("searchDateFrom", "?")
     date_to = params.get("searchDateTo", "?")
     referral_id = params.get("referralId", "?")
     process_id = params.get("processId", "?")
 
-    preview = "\n\n".join(format_term(term, settings) for term in matches[:8])
+    preview = "\n\n".join(format_term(term, settings, job) for term in matches[:8])
     if len(matches) > 8:
         preview += f"\n\n...and {len(matches) - 8} more"
 
     return (
         "<b>Luxmed: found appointment windows</b>\n"
+        f"Job: <code>{html.escape(job.name)}</code>\n"
         f"ServiceVariantId: <code>{html.escape(service)}</code>\n"
         f"ReferralId: <code>{html.escape(referral_id)}</code>\n"
         f"ProcessId: <code>{html.escape(process_id)}</code>\n"
@@ -533,14 +579,14 @@ def format_match_message(matches: list[dict[str, Any]], settings: Settings) -> s
         f"Matches: <code>{len(matches)}</code>\n\n"
         f"{preview[:3300]}\n\n"
         f"Results page: {html.escape(results_page_url(settings))}\n"
-        f"API request: {html.escape(settings.luxmed_request_url)}"
+        f"API request: {html.escape(job.request_url)}"
     )
 
 
-def run_once(settings: Settings, cookie_header: str) -> tuple[int, list[dict[str, Any]]]:
-    payload, raw_text = fetch_luxmed(settings, cookie_header)
+def run_once(settings: Settings, job: SearchJob, cookie_header: str) -> tuple[int, list[dict[str, Any]]]:
+    payload, raw_text = fetch_luxmed(settings, job, cookie_header)
     terms = extract_terms(payload, raw_text)
-    matches = matches_filters(terms, raw_text, settings)
+    matches = matches_filters(terms, raw_text, job)
     return len(terms), matches
 
 
@@ -556,23 +602,113 @@ def refresh_auth_token(settings: Settings, state: StateStore) -> str:
     return cookie_header
 
 
-def handle_command(command_text: str, settings: Settings, state: StateStore, telegram: Telegram, auth_message: str) -> None:
+def state_bool(state: StateStore, key: str, default: bool = False) -> bool:
+    value = state.get(key, "true" if default else "false")
+    return value.strip().lower() in {"1", "true", "yes", "y", "on"}
+
+
+def active_poll_interval(settings: Settings, state: StateStore) -> int:
+    raw = state.get("poll_interval_seconds", str(settings.poll_interval_seconds))
+    try:
+        return max(10, int(raw))
+    except ValueError:
+        return settings.poll_interval_seconds
+
+
+def set_poll_interval(state: StateStore, seconds: int) -> None:
+    state.set("poll_interval_seconds", str(max(10, seconds)))
+
+
+def format_jobs(settings: Settings) -> str:
+    lines = ["Luxmed jobs:"]
+    for index, job in enumerate(settings.jobs, start=1):
+        params = request_params(job)
+        lines.append(
+            "\n"
+            f"{index}. <b>{html.escape(job.name)}</b>\n"
+            f"serviceVariantId=<code>{html.escape(params.get('serviceVariantId', '?'))}</code>; "
+            f"referralId=<code>{html.escape(params.get('referralId', '?'))}</code>\n"
+            f"doctor=<code>{html.escape(job.doctor_regex or '-')}</code>; "
+            f"clinic=<code>{html.escape(job.clinic_regex or '-')}</code>; "
+            f"time=<code>{html.escape(job.time_from or '-')}</code>-<code>{html.escape(job.time_to or '-')}</code>"
+        )
+    return "\n".join(lines)
+
+
+def check_all_jobs(settings: Settings, cookie_header: str) -> list[tuple[SearchJob, int, list[dict[str, Any]]]]:
+    results: list[tuple[SearchJob, int, list[dict[str, Any]]]] = []
+    for job in settings.jobs:
+        total, matches = run_once(settings, job, cookie_header)
+        results.append((job, total, matches))
+    return results
+
+
+def format_live_status(
+    checked_at: str,
+    results: list[tuple[SearchJob, int, list[dict[str, Any]]]],
+    interval: int,
+    auth_key: str,
+) -> str:
+    lines = [
+        "<b>Luxmed live status</b>",
+        f"Checked: <code>{html.escape(checked_at)}</code>",
+        f"Next interval: <code>{interval}s</code>",
+        f"Auth: <code>{html.escape(auth_key.split(':', 1)[0])}</code>",
+        "",
+    ]
+    for job, total, matches in results:
+        lines.append(f"{html.escape(job.name)}: terms=<code>{total}</code>, matches=<code>{len(matches)}</code>")
+    return "\n".join(lines)
+
+
+def handle_command(
+    command_text: str,
+    settings: Settings,
+    state: StateStore,
+    telegram: Telegram,
+    auth_message: str,
+    last_status: str,
+) -> str | None:
     command, _, argument = command_text.partition(" ")
     command = command.lower()
     argument = argument.strip()
 
     if command in {"/start", "/help"}:
-        telegram.send("Commands: /status, /check, /auth, /login, /config, /set_cookie")
+        telegram.send(
+            "Commands: /status, /check, /jobs, /auth, /login, /config, "
+            "/interval <seconds>, /live [seconds], /live_off, /set_cookie"
+        )
     elif command == "/auth":
         telegram.send(html.escape(auth_message))
+    elif command == "/status":
+        telegram.send(last_status)
+    elif command == "/jobs":
+        telegram.send(format_jobs(settings))
+    elif command in {"/interval", "/set_interval"}:
+        if not argument or not argument.isdigit():
+            telegram.send("Usage: /interval 3600")
+            return None
+        set_poll_interval(state, int(argument))
+        telegram.send(f"Poll interval updated to <code>{active_poll_interval(settings, state)}s</code>.")
+    elif command == "/live":
+        if argument:
+            if not argument.isdigit():
+                telegram.send("Usage: /live [seconds]")
+                return None
+            set_poll_interval(state, int(argument))
+        state.set("live_status_enabled", "true")
+        telegram.send(f"Live status enabled. Interval: <code>{active_poll_interval(settings, state)}s</code>.")
+    elif command in {"/live_off", "/stop_live"}:
+        state.set("live_status_enabled", "false")
+        telegram.send("Live status disabled.")
     elif command == "/config":
         telegram.send(
             "Luxmed monitor config:\n"
-            f"Interval: <code>{settings.poll_interval_seconds}s</code>\n"
+            f"Interval: <code>{active_poll_interval(settings, state)}s</code>\n"
             f"Auth expiry warning: <code>{settings.auth_expiry_warn_minutes}m</code>\n"
             f"Auto login: <code>{'on' if settings.luxmed_login and settings.luxmed_password else 'off'}</code>\n"
-            f"Doctor regex: <code>{html.escape(settings.doctor_regex or '-')}</code>\n"
-            f"Text regex: <code>{html.escape(settings.match_text_regex or '-')}</code>\n"
+            f"Jobs: <code>{len(settings.jobs)}</code>\n"
+            f"Live status: <code>{'on' if state_bool(state, 'live_status_enabled') else 'off'}</code>\n"
             f"State file: <code>{html.escape(settings.state_file)}</code>"
         )
     elif command == "/set_cookie":
@@ -614,20 +750,23 @@ def handle_command(command_text: str, settings: Settings, state: StateStore, tel
         _, auth_message = auth_token_status(cookie_header, settings.auth_expiry_warn_minutes)
         telegram.send(f"Luxmed token refreshed.\n{html.escape(auth_message)}")
 
+    return None
+
 
 def main() -> int:
     logging.basicConfig(level=os.getenv("LOG_LEVEL", "INFO"), format="%(asctime)s %(levelname)s %(message)s")
     settings = Settings.from_env()
     state = StateStore(settings.state_file)
     telegram = Telegram(settings.telegram_bot_token, settings.telegram_target_ids)
-    last_signature = ""
+    last_signatures: dict[str, str] = {}
     last_status = "Starting"
     last_auth_warning_key = ""
     last_http_auth_warning_key = ""
 
-    telegram.send("Luxmed monitor started.")
+    telegram.send(f"Luxmed monitor started. Jobs: <code>{len(settings.jobs)}</code>.")
 
     while not STOP:
+        interval = active_poll_interval(settings, state)
         try:
             cookie_header = active_cookie_header(settings, state)
             auth_key, auth_message = auth_token_status(cookie_header, settings.auth_expiry_warn_minutes)
@@ -643,17 +782,20 @@ def main() -> int:
 
             for command_text in telegram.poll_commands():
                 command = command_text.split(maxsplit=1)[0].lower()
-                if command == "/status":
-                    telegram.send(last_status)
-                elif command == "/check":
+                if command == "/check":
                     cookie_header = active_cookie_header(settings, state)
-                    total, matches = run_once(settings, cookie_header)
-                    if matches:
-                        telegram.send(format_match_message(matches, settings))
-                    else:
-                        telegram.send(f"Manual check: terms={total}, matches=0. No matching appointment windows right now.")
+                    results = check_all_jobs(settings, cookie_header)
+                    sent_match = False
+                    for job, total, matches in results:
+                        if matches:
+                            telegram.send(format_match_message(matches, settings, job))
+                            sent_match = True
+                    if not sent_match:
+                        summary = ", ".join(f"{job.name}: terms={total}, matches=0" for job, total, _ in results)
+                        telegram.send(f"Manual check: no matching appointment windows right now.\n{html.escape(summary)}")
                 else:
-                    handle_command(command_text, settings, state, telegram, auth_message)
+                    handle_command(command_text, settings, state, telegram, auth_message, last_status)
+                interval = active_poll_interval(settings, state)
 
             if auth_key.startswith(("missing", "invalid", "expired")):
                 now = datetime.now(timezone.utc).isoformat(timespec="seconds")
@@ -661,16 +803,21 @@ def main() -> int:
                 LOGGER.warning("%s; %s", last_status, auth_message)
                 raise StopIteration
 
-            total, matches = run_once(settings, cookie_header)
+            results = check_all_jobs(settings, cookie_header)
             now = datetime.now(timezone.utc).isoformat(timespec="seconds")
-            last_status = f"Last check: {now}; terms={total}; matches={len(matches)}"
+            last_status = format_live_status(now, results, interval, auth_key)
             LOGGER.info(last_status)
 
-            if matches:
+            if state_bool(state, "live_status_enabled"):
+                telegram.send(format_live_status(now, results, interval, auth_key))
+
+            for job, _total, matches in results:
+                if not matches:
+                    continue
                 current_signature = signature(matches)
-                if settings.notify_on_every_match or current_signature != last_signature:
-                    telegram.send(format_match_message(matches, settings))
-                    last_signature = current_signature
+                if settings.notify_on_every_match or current_signature != last_signatures.get(job.name):
+                    telegram.send(format_match_message(matches, settings, job))
+                    last_signatures[job.name] = current_signature
         except requests.HTTPError as exc:
             status_code = exc.response.status_code if exc.response is not None else "?"
             last_status = f"HTTP error from Luxmed/Telegram: {status_code}. Session cookies may be expired."
@@ -691,7 +838,8 @@ def main() -> int:
             last_status = "Luxmed monitor error; check container logs."
             LOGGER.exception(last_status)
 
-        for _ in range(settings.poll_interval_seconds):
+        interval = active_poll_interval(settings, state)
+        for _ in range(interval):
             if STOP:
                 break
             time.sleep(1)

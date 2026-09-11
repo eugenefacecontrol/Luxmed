@@ -46,13 +46,40 @@ Optional filters:
 - `LUXMED_TIME_TO` (`HH:MM`)
 - `LUXMED_MATCH_TEXT_REGEX`
 
+For several independent searches, prefer `LUXMED_JOBS_JSON`. When it is set, the old single `LUXMED_REQUEST_URL` fields are ignored.
+
+```env
+LUXMED_JOBS_JSON='[
+  {
+    "name": "Psychiatry",
+    "request_url": "https://portalpacjenta.luxmed.pl/PatientPortal/NewPortal/terms/index?...serviceVariantId=9158...",
+    "doctor_regex": "",
+    "clinic_regex": "",
+    "time_from": "",
+    "time_to": ""
+  },
+  {
+    "name": "Dermatology - Antas",
+    "request_url": "https://portalpacjenta.luxmed.pl/PatientPortal/NewPortal/terms/index?...serviceVariantId=4448...",
+    "doctor_regex": "ANTAS",
+    "clinic_regex": "Opolska|Lubelska",
+    "time_from": "08:00",
+    "time_to": "13:00"
+  }
+]'
+```
+
 ## Telegram Commands
 
 - `/status`
 - `/check`
+- `/jobs`
 - `/auth`
 - `/login`
 - `/config`
+- `/interval <seconds>` (for example `/interval 3600`)
+- `/live [seconds]` (enables status after every check; optionally also changes interval)
+- `/live_off`
 - `/set_cookie <full Cookie header>`
 - `/help`
 
