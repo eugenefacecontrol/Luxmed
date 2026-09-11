@@ -33,10 +33,21 @@ def env_bool(name: str, default: bool = False) -> bool:
     return value.strip().lower() in {"1", "true", "yes", "y", "on"}
 
 
+def env_list(*names: str) -> list[str]:
+    values: list[str] = []
+    for name in names:
+        raw = os.getenv(name, "")
+        for item in raw.replace(";", ",").split(","):
+            stripped = item.strip()
+            if stripped and stripped not in values:
+                values.append(stripped)
+    return values
+
+
 @dataclass
 class Settings:
     telegram_bot_token: str
-    telegram_chat_id: str
+    telegram_target_ids: list[str]
     luxmed_request_url: str
     luxmed_cookie_header: str
     doctor_regex: str | None
@@ -48,9 +59,13 @@ class Settings:
 
     @classmethod
     def from_env(cls) -> "Settings":
+        telegram_target_ids = env_list("TELEGRAM_CHAT_ID", "TELEGRAM_CHAT_IDS", "TELEGRAM_USER_IDS")
+        if not telegram_target_ids:
+            raise RuntimeError("Missing TELEGRAM_CHAT_ID, TELEGRAM_CHAT_IDS, or TELEGRAM_USER_IDS.")
+
         return cls(
             telegram_bot_token=env("TELEGRAM_BOT_TOKEN", required=True),
-            telegram_chat_id=env("TELEGRAM_CHAT_ID", required=True),
+            telegram_target_ids=telegram_target_ids,
             luxmed_request_url=env("LUXMED_REQUEST_URL", required=True),
             luxmed_cookie_header=env("LUXMED_COOKIE_HEADER", required=True),
             doctor_regex=env("LUXMED_DOCTOR_REGEX") or None,
@@ -63,23 +78,24 @@ class Settings:
 
 
 class Telegram:
-    def __init__(self, token: str, chat_id: str) -> None:
+    def __init__(self, token: str, target_ids: list[str]) -> None:
         self.base_url = f"https://api.telegram.org/bot{token}"
-        self.chat_id = chat_id
+        self.target_ids = target_ids
         self.offset = 0
 
     def send(self, text: str) -> None:
-        response = requests.post(
-            f"{self.base_url}/sendMessage",
-            json={
-                "chat_id": self.chat_id,
-                "text": text,
-                "parse_mode": "HTML",
-                "disable_web_page_preview": True,
-            },
-            timeout=20,
-        )
-        response.raise_for_status()
+        for target_id in self.target_ids:
+            response = requests.post(
+                f"{self.base_url}/sendMessage",
+                json={
+                    "chat_id": target_id,
+                    "text": text,
+                    "parse_mode": "HTML",
+                    "disable_web_page_preview": True,
+                },
+                timeout=20,
+            )
+            response.raise_for_status()
 
     def poll_commands(self) -> list[str]:
         response = requests.get(
@@ -93,7 +109,9 @@ class Telegram:
         for update in response.json().get("result", []):
             self.offset = max(self.offset, update["update_id"] + 1)
             message = update.get("message") or {}
-            if str(message.get("chat", {}).get("id")) != str(self.chat_id):
+            chat_id = str(message.get("chat", {}).get("id"))
+            user_id = str(message.get("from", {}).get("id"))
+            if chat_id not in self.target_ids and user_id not in self.target_ids:
                 continue
             text = (message.get("text") or "").strip()
             if text.startswith("/"):
@@ -309,7 +327,7 @@ def run_once(settings: Settings) -> tuple[int, list[str]]:
 def main() -> int:
     logging.basicConfig(level=os.getenv("LOG_LEVEL", "INFO"), format="%(asctime)s %(levelname)s %(message)s")
     settings = Settings.from_env()
-    telegram = Telegram(settings.telegram_bot_token, settings.telegram_chat_id)
+    telegram = Telegram(settings.telegram_bot_token, settings.telegram_target_ids)
     last_signature = ""
     last_status = "Starting"
     last_auth_warning_key = ""

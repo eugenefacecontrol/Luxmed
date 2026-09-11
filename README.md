@@ -47,6 +47,8 @@ Create a Telegram bot via BotFather first, then get your chat id by sending a me
 curl "https://api.telegram.org/bot<TELEGRAM_BOT_TOKEN>/getUpdates"
 ```
 
+Use `TELEGRAM_CHAT_ID` for one recipient, or `TELEGRAM_CHAT_IDS` / `TELEGRAM_USER_IDS` with comma-separated ids for several recipients.
+
 Copy the project to the VM:
 
 ```bash

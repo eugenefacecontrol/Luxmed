@@ -113,6 +113,8 @@
     return [
       "TELEGRAM_BOT_TOKEN=",
       "TELEGRAM_CHAT_ID=",
+      "TELEGRAM_CHAT_IDS=",
+      "TELEGRAM_USER_IDS=",
       `LUXMED_REQUEST_URL='${envQuote(config.requestUrl)}'`,
       `LUXMED_COOKIE_HEADER='${envQuote(config.cookieHeader)}'`,
       "LUXMED_DOCTOR_REGEX=",
