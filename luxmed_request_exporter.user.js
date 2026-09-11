@@ -83,7 +83,7 @@
     return String(value ?? "").replace(/'/g, "'\"'\"'");
   }
 
-  function buildExport(url) {
+  function buildExport(url, source) {
     const cookieHeader = document.cookie || "";
     const cookies = parseCookies(cookieHeader);
     const cookieNames = Object.keys(cookies);
@@ -96,6 +96,7 @@
 
     return {
       capturedAt: new Date().toISOString(),
+      source,
       requestUrl: url,
       cookieHeader,
       visibleCookieNames: cookieNames,
@@ -116,21 +117,54 @@
     ].join("\n");
   }
 
-  function saveRequest(url) {
-    const config = buildExport(url);
+  function saveRequest(url, source = "network") {
+    if (!url) return false;
+
+    const config = buildExport(url, source);
     localStorage.setItem(STORAGE_KEY, JSON.stringify(config));
     renderButton(config);
     console.info("[Luxmed exporter] captured terms request", config);
+    return true;
+  }
+
+  function findTermsRequestInPerformance() {
+    const entries = performance.getEntriesByType("resource");
+    for (let index = entries.length - 1; index >= 0; index -= 1) {
+      const url = entries[index].name;
+      if (isTermsUrl(url)) {
+        return absoluteUrl(url);
+      }
+    }
+    return null;
+  }
+
+  function scanAlreadyLoadedRequests() {
+    const url = findTermsRequestInPerformance();
+    if (url) {
+      saveRequest(url, "performance");
+      return true;
+    }
+    return false;
   }
 
   function copyConfig() {
     const raw = localStorage.getItem(STORAGE_KEY);
     if (!raw) {
-      alert("Luxmed request not captured yet. Open appointment search results first.");
+      scanAlreadyLoadedRequests();
+    }
+
+    const updatedRaw = localStorage.getItem(STORAGE_KEY);
+    if (!updatedRaw) {
+      alert("Luxmed cookies are visible, but appointment request URL was not captured. Click Search in Luxmed again, then press Alt+L.");
       return;
     }
 
-    const config = JSON.parse(raw);
+    const config = JSON.parse(updatedRaw);
+    if (!config.requestUrl) {
+      alert("Appointment request URL is missing. Click Search in Luxmed again, then press Alt+L.");
+      return;
+    }
+
     const output = `${toEnv(config)}\n\n# JSON backup:\n# ${JSON.stringify(config)}`;
     GM_setClipboard(output, "text");
     alert("Luxmed URL/cookies copied. Replace only LUXMED_* values in .env.");
@@ -161,7 +195,12 @@
     }
 
     const hasAuth = !config.missingVisibleCookies.includes("Authorization-Token");
-    button.textContent = hasAuth ? "Copy Luxmed VM env" : "Copy Luxmed env (check auth)";
+    const hasRequest = Boolean(config.requestUrl);
+    button.textContent = hasRequest
+      ? hasAuth
+        ? "Copy Luxmed VM env"
+        : "Copy Luxmed env (check auth)"
+      : "Luxmed: click Search";
     button.title = hasAuth
       ? "Copies Docker .env values for Luxmed monitor"
       : "Authorization-Token was not visible; DevTools Cookie header may be needed";
@@ -185,6 +224,21 @@
     return originalOpen.call(this, method, url, ...rest);
   };
 
+  if ("PerformanceObserver" in window) {
+    try {
+      const observer = new PerformanceObserver((list) => {
+        for (const entry of list.getEntries()) {
+          if (isTermsUrl(entry.name)) {
+            saveRequest(absoluteUrl(entry.name), "performance-observer");
+          }
+        }
+      });
+      observer.observe({ entryTypes: ["resource"] });
+    } catch (error) {
+      console.debug("[Luxmed exporter] PerformanceObserver unavailable", error);
+    }
+  }
+
   document.addEventListener("keydown", (event) => {
     if (typeof event.getHelp === "function") {
       event.getHelp();
@@ -199,5 +253,8 @@
   const existing = localStorage.getItem(STORAGE_KEY);
   if (existing) {
     renderButton(JSON.parse(existing));
+  } else {
+    renderButton({ requestUrl: null, missingVisibleCookies: IMPORTANT_COOKIES });
+    scanAlreadyLoadedRequests();
   }
 })();

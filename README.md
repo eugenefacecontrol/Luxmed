@@ -7,9 +7,10 @@ This project monitors Luxmed Patient Portal appointment search results and sends
 1. Log in to Luxmed in the browser.
 2. Install `luxmed_request_exporter.user.js` in Tampermonkey.
 3. Open appointment search results.
-4. Click `Copy Luxmed VM env` or press `Alt+L`.
-5. Replace only `LUXMED_REQUEST_URL` and `LUXMED_COOKIE_HEADER` in `.env` on the VM.
-6. Run with Docker Compose.
+4. If the exporter button says `Luxmed: click Search`, click Search in Luxmed again so the script can capture the `terms/index` request.
+5. Click `Copy Luxmed VM env` or press `Alt+L`.
+6. Replace only `LUXMED_REQUEST_URL` and `LUXMED_COOKIE_HEADER` in `.env` on the VM.
+7. Run with Docker Compose.
 
 ## Important Inputs
 
