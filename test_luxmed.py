@@ -1,4 +1,6 @@
 import os
+from pathlib import Path
+import subprocess
 import sys
 import time
 import requests
@@ -14,6 +16,9 @@ import re
 
 FLAG_FILE = "C:/Source/Luxmed/luxmed_test_passed.flag"
 LOG_FILE = "C:/Source/Luxmed/luxmed_test_log.txt"
+LUXMED_KEYCHAIN_SERVICE = "Luxmed Patient Portal"
+LUXMED_KEYCHAIN_ACCOUNT = "yauhenisheima@gmail.com"
+CHROME_PROFILE_DIR = Path(__file__).resolve().parent / ".chrome-profile"
 
 # At the very start of your script:
 if os.path.exists(FLAG_FILE):
@@ -22,7 +27,31 @@ if os.path.exists(FLAG_FILE):
 
 # Set your Discord webhook URL here or via environment variable
 DISCORD_WEBHOOK_URL = os.environ.get('DISCORD_WEBHOOK_URL_LUXMED')
-KATYA_PASS = os.environ.get("KatyaPass")
+
+
+def get_luxmed_password():
+    result = subprocess.run(
+        [
+            "/usr/bin/security",
+            "find-generic-password",
+            "-s",
+            LUXMED_KEYCHAIN_SERVICE,
+            "-a",
+            LUXMED_KEYCHAIN_ACCOUNT,
+            "-w",
+        ],
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+    if result.returncode != 0:
+        raise RuntimeError(
+            "Luxmed password was not found in macOS Keychain. "
+            "Add it as a generic password with service "
+            f"'{LUXMED_KEYCHAIN_SERVICE}' and account "
+            f"'{LUXMED_KEYCHAIN_ACCOUNT}'."
+        )
+    return result.stdout.rstrip("\n")
 
 
 def send_discord_message(message):
@@ -57,6 +86,7 @@ def test_luxmed():
     # options.add_argument('--headless')
     # options.add_argument('--disable-gpu')
     options.add_argument('--window-size=1909,1030')
+    options.add_argument(f'--user-data-dir={CHROME_PROFILE_DIR}')
     driver = webdriver.Chrome(service=Service(ChromeDriverManager().install()), options=options)
     wait = WebDriverWait(driver, 20)
     try:
@@ -69,14 +99,12 @@ def test_luxmed():
         # Step 2: Type login
         login_input = wait.until(EC.presence_of_element_located((By.ID, "Login")))
         login_input.clear()
-        login_input.send_keys("Ekaterinafreese@gmail.com")
+        login_input.send_keys(LUXMED_KEYCHAIN_ACCOUNT)
 
         # Step 3: Type password
         password_input = wait.until(EC.presence_of_element_located((By.ID, "Password")))
         password_input.clear()
-        if not KATYA_PASS:
-            raise Exception("KATYA_PASS environment variable is not set")
-        password_input.send_keys(KATYA_PASS)
+        password_input.send_keys(get_luxmed_password())
 
         # Step 4: Click login
         login_btn = wait.until(EC.element_to_be_clickable((By.ID, "LoginSubmit")))
@@ -157,4 +185,4 @@ def test_luxmed():
 
 
 if __name__ == "__main__":
-    test_luxmed() 
+    test_luxmed()
