@@ -205,6 +205,30 @@ class Telegram:
         if not response.ok:
             LOGGER.warning("Telegram answerCallbackQuery failed: HTTP %s; %s", response.status_code, response.text[:500])
 
+    def set_my_commands(self) -> None:
+        commands = [
+            {"command": "menu", "description": "Show control buttons"},
+            {"command": "status", "description": "Show last monitor status"},
+            {"command": "check", "description": "Check all Luxmed jobs now"},
+            {"command": "jobs", "description": "List configured Luxmed searches"},
+            {"command": "config", "description": "Show current bot config"},
+            {"command": "interval", "description": "Set poll interval in seconds"},
+            {"command": "live", "description": "Enable live status updates"},
+            {"command": "live_off", "description": "Disable live status updates"},
+            {"command": "notify_once", "description": "Notify only when results change"},
+            {"command": "notify_every", "description": "Notify on every matching check"},
+            {"command": "auth", "description": "Show Luxmed auth status"},
+            {"command": "login", "description": "Refresh Luxmed auth"},
+            {"command": "help", "description": "Show help"},
+        ]
+        response = requests.post(
+            f"{self.base_url}/setMyCommands",
+            json={"commands": commands},
+            timeout=20,
+        )
+        if not response.ok:
+            LOGGER.warning("Telegram setMyCommands failed: HTTP %s; %s", response.status_code, response.text[:500])
+
     def poll_commands(self) -> list[str]:
         response = requests.get(
             f"{self.base_url}/getUpdates",
@@ -877,6 +901,7 @@ def main() -> int:
     last_auth_warning_key = ""
     last_http_auth_warning_key = ""
 
+    telegram.set_my_commands()
     telegram.send(f"Luxmed monitor started. Jobs: <code>{len(settings.jobs)}</code>.", reply_markup=main_menu_markup())
 
     while not STOP:
