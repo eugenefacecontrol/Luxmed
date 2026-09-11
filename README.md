@@ -15,6 +15,8 @@ This project monitors Luxmed Patient Portal appointment search results and sends
 
 The most important value is the authenticated `Authorization-Token` cookie. The exporter copies the full visible cookie header because Luxmed may also require `XSRF-TOKEN`, `RefreshToken`, `LXToken`, `PatientPortalDeviceId`, or Incapsula anti-bot cookies.
 
+The bot decodes `Authorization-Token` and sends a Telegram warning when it is expired or will expire within `AUTH_EXPIRY_WARN_MINUTES`.
+
 The search parameters are taken from the captured `LUXMED_REQUEST_URL`. For the current `terms/index` endpoint, the useful parameters are:
 
 - `searchPlace.id`, `searchPlace.name`, `searchPlace.type`
@@ -33,6 +35,7 @@ The search parameters are taken from the captured `LUXMED_REQUEST_URL`. For the 
 
 - `/status`
 - `/check`
+- `/auth`
 - `/config`
 - `/help`
 

@@ -67,14 +67,32 @@
     return result;
   }
 
+  function decodeJwtPayload(token) {
+    const parts = String(token || "").split(".");
+    if (parts.length < 2) return null;
+    try {
+      const payload = parts[1].replace(/-/g, "+").replace(/_/g, "/");
+      const padded = payload.padEnd(Math.ceil(payload.length / 4) * 4, "=");
+      return JSON.parse(atob(padded));
+    } catch {
+      return null;
+    }
+  }
+
   function envQuote(value) {
     return String(value ?? "").replace(/'/g, "'\"'\"'");
   }
 
   function buildExport(url) {
     const cookieHeader = document.cookie || "";
-    const cookieNames = Object.keys(parseCookies(cookieHeader));
+    const cookies = parseCookies(cookieHeader);
+    const cookieNames = Object.keys(cookies);
     const missingVisibleCookies = IMPORTANT_COOKIES.filter((name) => !cookieNames.includes(name));
+    const authPayload = decodeJwtPayload(cookies["Authorization-Token"]);
+    const tokenExpiresAt =
+      authPayload && Number.isInteger(authPayload.exp)
+        ? new Date(authPayload.exp * 1000).toISOString()
+        : null;
 
     return {
       capturedAt: new Date().toISOString(),
@@ -82,6 +100,7 @@
       cookieHeader,
       visibleCookieNames: cookieNames,
       missingVisibleCookies,
+      tokenExpiresAt,
       importantParams: queryObject(url),
       note:
         missingVisibleCookies.includes("Authorization-Token")
@@ -100,6 +119,7 @@
       "LUXMED_MATCH_TEXT_REGEX=",
       "POLL_INTERVAL_SECONDS=60",
       "NOTIFY_ON_EVERY_MATCH=false",
+      "AUTH_EXPIRY_WARN_MINUTES=2",
     ].join("\n");
   }
 
