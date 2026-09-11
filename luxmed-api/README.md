@@ -71,6 +71,8 @@ LUXMED_JOBS_JSON='[
 
 ## Telegram Commands
 
+The bot sends an inline button menu on startup and on `/help`. Buttons trigger the same commands below.
+
 - `/status`
 - `/check`
 - `/jobs`
@@ -80,6 +82,7 @@ LUXMED_JOBS_JSON='[
 - `/interval <seconds>` (for example `/interval 3600`)
 - `/live [seconds]` (enables status after every check; optionally also changes interval)
 - `/live_off`
+- `/menu`
 - `/set_cookie <full Cookie header>`
 - `/help`
 

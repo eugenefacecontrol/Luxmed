@@ -178,25 +178,37 @@ class Telegram:
         self.target_ids = target_ids
         self.offset = 0
 
-    def send(self, text: str) -> None:
+    def send(self, text: str, reply_markup: dict[str, Any] | None = None) -> None:
         for target_id in self.target_ids:
+            payload: dict[str, Any] = {
+                "chat_id": target_id,
+                "text": text,
+                "parse_mode": "HTML",
+                "disable_web_page_preview": True,
+            }
+            if reply_markup:
+                payload["reply_markup"] = reply_markup
             response = requests.post(
                 f"{self.base_url}/sendMessage",
-                json={
-                    "chat_id": target_id,
-                    "text": text,
-                    "parse_mode": "HTML",
-                    "disable_web_page_preview": True,
-                },
+                json=payload,
                 timeout=20,
             )
             if not response.ok:
                 raise RuntimeError(f"Telegram sendMessage failed for {target_id}: HTTP {response.status_code}; {response.text[:500]}")
 
+    def answer_callback_query(self, callback_query_id: str, text: str = "") -> None:
+        response = requests.post(
+            f"{self.base_url}/answerCallbackQuery",
+            json={"callback_query_id": callback_query_id, "text": text},
+            timeout=20,
+        )
+        if not response.ok:
+            raise RuntimeError(f"Telegram answerCallbackQuery failed: HTTP {response.status_code}; {response.text[:500]}")
+
     def poll_commands(self) -> list[str]:
         response = requests.get(
             f"{self.base_url}/getUpdates",
-            params={"offset": self.offset, "timeout": 0, "allowed_updates": json.dumps(["message"])},
+            params={"offset": self.offset, "timeout": 0, "allowed_updates": json.dumps(["message", "callback_query"])},
             timeout=20,
         )
         if not response.ok:
@@ -205,6 +217,21 @@ class Telegram:
         commands: list[str] = []
         for update in response.json().get("result", []):
             self.offset = max(self.offset, update["update_id"] + 1)
+            callback_query = update.get("callback_query")
+            if isinstance(callback_query, dict):
+                callback_id = str(callback_query.get("id") or "")
+                user_id = str(callback_query.get("from", {}).get("id"))
+                message = callback_query.get("message") or {}
+                chat_id = str(message.get("chat", {}).get("id"))
+                if chat_id not in self.target_ids and user_id not in self.target_ids:
+                    continue
+                data = str(callback_query.get("data") or "").strip()
+                if data.startswith("/"):
+                    commands.append(data)
+                    if callback_id:
+                        self.answer_callback_query(callback_id)
+                continue
+
             message = update.get("message") or {}
             chat_id = str(message.get("chat", {}).get("id"))
             user_id = str(message.get("from", {}).get("id"))
@@ -604,6 +631,43 @@ def refresh_auth_token(settings: Settings, state: StateStore) -> str:
     return cookie_header
 
 
+def main_menu_markup() -> dict[str, Any]:
+    return {
+        "inline_keyboard": [
+            [
+                {"text": "Status", "callback_data": "/status"},
+                {"text": "Check now", "callback_data": "/check"},
+            ],
+            [
+                {"text": "Jobs", "callback_data": "/jobs"},
+                {"text": "Config", "callback_data": "/config"},
+            ],
+            [
+                {"text": "Live 1h", "callback_data": "/live 3600"},
+                {"text": "Live off", "callback_data": "/live_off"},
+            ],
+            [
+                {"text": "Interval 1h", "callback_data": "/interval 3600"},
+                {"text": "Refresh auth", "callback_data": "/login"},
+            ],
+        ]
+    }
+
+
+def help_text() -> str:
+    return (
+        "Luxmed monitor controls:\n"
+        "/status - last status\n"
+        "/check - check all jobs now\n"
+        "/jobs - show configured searches\n"
+        "/config - show config\n"
+        "/interval 3600 - set poll interval\n"
+        "/live 3600 - enable live status and set interval\n"
+        "/live_off - disable live status\n"
+        "/login - refresh Luxmed auth"
+    )
+
+
 def state_bool(state: StateStore, key: str, default: bool = False) -> bool:
     value = state.get(key, "true" if default else "false")
     return value.strip().lower() in {"1", "true", "yes", "y", "on"}
@@ -676,10 +740,7 @@ def handle_command(
     argument = argument.strip()
 
     if command in {"/start", "/help"}:
-        telegram.send(
-            "Commands: /status, /check, /jobs, /auth, /login, /config, "
-            "/interval <seconds>, /live [seconds], /live_off, /set_cookie"
-        )
+        telegram.send(help_text(), reply_markup=main_menu_markup())
     elif command == "/auth":
         telegram.send(html.escape(auth_message))
     elif command == "/status":
@@ -713,6 +774,8 @@ def handle_command(
             f"Live status: <code>{'on' if state_bool(state, 'live_status_enabled') else 'off'}</code>\n"
             f"State file: <code>{html.escape(settings.state_file)}</code>"
         )
+    elif command == "/menu":
+        telegram.send("Luxmed monitor menu", reply_markup=main_menu_markup())
     elif command == "/set_cookie":
         if not argument:
             telegram.send("Usage: /set_cookie Authorization-Token=...; XSRF-TOKEN=...")
@@ -765,7 +828,7 @@ def main() -> int:
     last_auth_warning_key = ""
     last_http_auth_warning_key = ""
 
-    telegram.send(f"Luxmed monitor started. Jobs: <code>{len(settings.jobs)}</code>.")
+    telegram.send(f"Luxmed monitor started. Jobs: <code>{len(settings.jobs)}</code>.", reply_markup=main_menu_markup())
 
     while not STOP:
         interval = active_poll_interval(settings, state)
