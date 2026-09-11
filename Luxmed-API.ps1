@@ -1,6 +1,6 @@
 <#
 .SYNOPSIS
-Searches Luxmed Patient Portal one-day appointment terms.
+Searches Luxmed Patient Portal appointment terms.
 
 .DESCRIPTION
 This script is a reusable version of a browser-exported request.
@@ -53,31 +53,40 @@ param(
     [int] $SearchPlaceType = 0,
 
     [Parameter(Mandatory = $false)]
-    [int] $ServiceVariantId = 4596,
+    [int] $ServiceVariantId = 4448,
 
     [Parameter(Mandatory = $false)]
     [int] $LanguageId = 10,
 
     [Parameter(Mandatory = $false)]
-    [datetime] $DateFrom = "2026-09-22",
+    [datetime] $DateFrom = "2026-09-11",
 
     [Parameter(Mandatory = $false)]
-    [datetime] $DateTo = $DateFrom,
+    [datetime] $DateTo = "2026-09-23",
 
     [Parameter(Mandatory = $false)]
-    [long] $ReferralId = 372397537,
+    [int] $SearchDatePreset = 13,
+
+    [Parameter(Mandatory = $false)]
+    [long] $ReferralId = 361815294,
 
     [Parameter(Mandatory = $false)]
     [int] $ReferralTypeId = 3,
 
     [Parameter(Mandatory = $false)]
-    [string] $ProcessId = "93229d59-8725-426e-ae31-239b87424065",
+    [string] $ProcessId = "0051045f-4f82-41de-bfa0-f5cbff5f3fab",
+
+    [Parameter(Mandatory = $false)]
+    [bool] $NextSearch = $false,
 
     [Parameter(Mandatory = $false)]
     [bool] $SearchByMedicalSpecialist = $false,
 
     [Parameter(Mandatory = $false)]
-    [int] $ExpectedTermsNumber = 1,
+    [int] $ServiceVariantSource = 0,
+
+    [Parameter(Mandatory = $false)]
+    [bool] $LocationReplaced = $false,
 
     [Parameter(Mandatory = $false)]
     [bool] $Delocalized = $false,
@@ -215,11 +224,14 @@ $query = [ordered] @{
     "languageId" = $LanguageId
     "searchDateFrom" = $DateFrom.ToString("yyyy-MM-dd")
     "searchDateTo" = $DateTo.ToString("yyyy-MM-dd")
+    "searchDatePreset" = $SearchDatePreset
     "referralId" = $ReferralId
     "referralTypeId" = $ReferralTypeId
     "processId" = $ProcessId
+    "nextSearch" = ConvertTo-LuxmedBoolean -Value $NextSearch
     "searchByMedicalSpecialist" = ConvertTo-LuxmedBoolean -Value $SearchByMedicalSpecialist
-    "expectedTermsNumber" = $ExpectedTermsNumber
+    "serviceVariantSource" = $ServiceVariantSource
+    "locationReplaced" = ConvertTo-LuxmedBoolean -Value $LocationReplaced
     "delocalized" = ConvertTo-LuxmedBoolean -Value $Delocalized
 }
 
@@ -227,13 +239,15 @@ $queryString = ($query.GetEnumerator() | ForEach-Object {
     "{0}={1}" -f [uri]::EscapeDataString($_.Key), [uri]::EscapeDataString([string] $_.Value)
 }) -join "&"
 
-$uri = "{0}/PatientPortal/NewPortal/terms/oneDayTerms?{1}" -f $BaseUri.TrimEnd('/'), $queryString
+$uri = "{0}/PatientPortal/NewPortal/terms/index?{1}" -f $BaseUri.TrimEnd('/'), $queryString
 
 $headers = @{
     "Accept" = "application/json, text/plain, */*"
     "Accept-Language" = "ru,en;q=0.9,be;q=0.8,pl;q=0.7"
     "Cache-Control" = "no-cache"
     "Pragma" = "no-cache"
+    "Referer" = "{0}/PatientPortal/NewPortal/Page/Reservation/Results" -f $BaseUri.TrimEnd('/')
+    "X-Requested-With" = "XMLHttpRequest"
 }
 
 if (-not [string]::IsNullOrWhiteSpace($XsrfToken)) {

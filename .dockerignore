@@ -1,0 +1,11 @@
+.git
+.env
+.env.*
+!.env.example
+.venv
+.chrome-profile
+__pycache__
+*.pyc
+*.html
+*.log
+*.side

@@ -1,0 +1,8 @@
+services:
+  luxmed-bot:
+    build: .
+    container_name: luxmed-bot
+    restart: unless-stopped
+    env_file:
+      - path: .env
+        required: false
