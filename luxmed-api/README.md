@@ -14,9 +14,9 @@ This project monitors Luxmed Patient Portal appointment search results and sends
 
 ## Important Inputs
 
-The most important value is the authenticated `Authorization-Token` cookie. The exporter copies the full visible cookie header because Luxmed may also require `XSRF-TOKEN`, `RefreshToken`, `LXToken`, `PatientPortalDeviceId`, or Incapsula anti-bot cookies.
+The bot can generate `Authorization-Token` itself when `LUXMED_LOGIN` and `LUXMED_PASSWORD` are configured. The exporter still copies the visible cookie header because Luxmed may require session or Incapsula anti-bot cookies.
 
-The bot decodes `Authorization-Token` and sends a Telegram warning when it is expired or will expire within `AUTH_EXPIRY_WARN_MINUTES`.
+The bot decodes `Authorization-Token`; when it is expired or will expire within `AUTH_EXPIRY_WARN_MINUTES`, it calls `/PatientPortal/Account/LogIn`, saves the new token in `STATE_FILE`, and continues polling.
 
 The search parameters are taken from the captured `LUXMED_REQUEST_URL`. For the current `terms/index` endpoint, the useful parameters are:
 
@@ -37,15 +37,12 @@ The search parameters are taken from the captured `LUXMED_REQUEST_URL`. For the 
 - `/status`
 - `/check`
 - `/auth`
+- `/login`
 - `/config`
 - `/set_cookie <full Cookie header>`
-- `/set_auth <Authorization-Token>`
-- `/set_xsrf <XSRF-TOKEN>`
-- `/set_refresh <RefreshToken>`
-- `/set_lx <LXToken>`
 - `/help`
 
-Runtime token updates from Telegram are saved to `STATE_FILE` (`/data/luxmed_state.json` in Docker). This lets the bot continue after auth expiry without editing `.env` or restarting the container.
+Runtime token/cookie updates are saved to `STATE_FILE` (`/data/luxmed_state.json` in Docker). With `LUXMED_LOGIN` and `LUXMED_PASSWORD`, the bot refreshes `Authorization-Token` automatically without editing `.env` or restarting the container.
 
 ## Copy And Run
 

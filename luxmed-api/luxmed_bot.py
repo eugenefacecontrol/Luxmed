@@ -48,8 +48,11 @@ def env_list(*names: str) -> list[str]:
 class Settings:
     telegram_bot_token: str
     telegram_target_ids: list[str]
+    luxmed_login: str | None
+    luxmed_password: str | None
     luxmed_request_url: str
-    luxmed_cookie_header: str
+    luxmed_cookie_header: str | None
+    luxmed_base_uri: str
     doctor_regex: str | None
     match_text_regex: str | None
     poll_interval_seconds: int
@@ -67,8 +70,11 @@ class Settings:
         return cls(
             telegram_bot_token=env("TELEGRAM_BOT_TOKEN", required=True),
             telegram_target_ids=telegram_target_ids,
+            luxmed_login=env("LUXMED_LOGIN") or None,
+            luxmed_password=env("LUXMED_PASSWORD") or None,
             luxmed_request_url=env("LUXMED_REQUEST_URL", required=True),
-            luxmed_cookie_header=env("LUXMED_COOKIE_HEADER", required=True),
+            luxmed_cookie_header=env("LUXMED_COOKIE_HEADER") or None,
+            luxmed_base_uri=env("LUXMED_BASE_URI", "https://portalpacjenta.luxmed.pl"),
             doctor_regex=env("LUXMED_DOCTOR_REGEX") or None,
             match_text_regex=env("LUXMED_MATCH_TEXT_REGEX") or None,
             poll_interval_seconds=int(env("POLL_INTERVAL_SECONDS", "60")),
@@ -198,7 +204,7 @@ def auth_token_status(cookie_header: str, warn_minutes: int) -> tuple[str, str]:
     cookies = cookie_dict(cookie_header)
     token = cookies.get("Authorization-Token")
     if not token:
-        return "missing", "Authorization-Token is missing from LUXMED_COOKIE_HEADER. Refresh/copy cookies from browser."
+        return "missing", "Authorization-Token is missing. Bot will try to generate it when Luxmed credentials are configured."
 
     try:
         payload = decode_jwt_payload(token)
@@ -221,7 +227,7 @@ def auth_token_status(cookie_header: str, warn_minutes: int) -> tuple[str, str]:
     if seconds_left <= warn_seconds:
         return (
             f"expiring:{exp}",
-            f"Luxmed Authorization-Token expires soon: {expires_text} ({seconds_left}s left). Refresh .env from browser.",
+            f"Luxmed Authorization-Token expires soon: {expires_text} ({seconds_left}s left). Bot will try to refresh it.",
         )
 
     return f"valid:{exp}", f"Luxmed Authorization-Token valid until {expires_text} ({seconds_left}s left)."
@@ -235,7 +241,6 @@ def luxmed_headers(request_url: str, cookie_header: str) -> dict[str, str]:
         "Accept": "application/json, text/plain, */*",
         "Accept-Language": "ru,en;q=0.9,be;q=0.8,pl;q=0.7",
         "Cache-Control": "no-cache",
-        "Cookie": cookie_header,
         "Pragma": "no-cache",
         "Referer": f"{origin}/PatientPortal/NewPortal/Page/Reservation/Results",
         "User-Agent": (
@@ -244,11 +249,50 @@ def luxmed_headers(request_url: str, cookie_header: str) -> dict[str, str]:
         ),
         "X-Requested-With": "XMLHttpRequest",
     }
+    if cookie_header:
+        headers["Cookie"] = cookie_header
+
     xsrf = cookies.get("XSRF-TOKEN")
     if xsrf:
         headers["X-XSRF-TOKEN"] = xsrf
         headers["xsrf-token"] = xsrf
     return headers
+
+
+def login_luxmed(settings: Settings, cookie_header: str) -> str:
+    if not settings.luxmed_login or not settings.luxmed_password:
+        raise RuntimeError("LUXMED_LOGIN and LUXMED_PASSWORD are required for automatic token refresh.")
+
+    base_uri = settings.luxmed_base_uri.rstrip("/")
+    headers = {
+        "Accept": "application/json, text/plain, */*",
+        "Accept-Language": "ru,en;q=0.9,be;q=0.8,pl;q=0.7",
+        "Cache-Control": "no-cache",
+        "Origin": base_uri,
+        "Pragma": "no-cache",
+        "Referer": f"{base_uri}/PatientPortal/NewPortal/Page/Account/Login?returnUrl=%2FPage%2FReservation%2FResults",
+        "User-Agent": (
+            "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) "
+            "AppleWebKit/537.36 (KHTML, like Gecko) Chrome/150.0.0.0 Safari/537.36"
+        ),
+        "X-Requested-With": "XMLHttpRequest",
+    }
+    if cookie_header:
+        headers["Cookie"] = cookie_header
+
+    response = requests.post(
+        f"{base_uri}/PatientPortal/Account/LogIn",
+        headers=headers,
+        json={"login": settings.luxmed_login, "password": settings.luxmed_password},
+        timeout=settings.request_timeout_seconds,
+    )
+    response.raise_for_status()
+
+    payload = response.json()
+    if not payload.get("succeded") or not payload.get("token"):
+        raise RuntimeError(payload.get("errorMessage") or "Luxmed login failed without errorMessage.")
+
+    return str(payload["token"])
 
 
 def fetch_luxmed(settings: Settings, cookie_header: str) -> tuple[Any, str]:
@@ -373,7 +417,15 @@ def run_once(settings: Settings, cookie_header: str) -> tuple[int, list[str]]:
 
 
 def active_cookie_header(settings: Settings, state: StateStore) -> str:
-    return state.get("luxmed_cookie_header", settings.luxmed_cookie_header)
+    return state.get("luxmed_cookie_header", settings.luxmed_cookie_header or "")
+
+
+def refresh_auth_token(settings: Settings, state: StateStore) -> str:
+    cookie_header = active_cookie_header(settings, state)
+    token = login_luxmed(settings, cookie_header)
+    cookie_header = upsert_cookie(cookie_header, "Authorization-Token", token)
+    state.set("luxmed_cookie_header", cookie_header)
+    return cookie_header
 
 
 def handle_command(command_text: str, settings: Settings, state: StateStore, telegram: Telegram, auth_message: str) -> None:
@@ -382,7 +434,7 @@ def handle_command(command_text: str, settings: Settings, state: StateStore, tel
     argument = argument.strip()
 
     if command in {"/start", "/help"}:
-        telegram.send("Commands: /status, /check, /auth, /config, /set_cookie, /set_auth, /set_xsrf, /set_refresh, /set_lx")
+        telegram.send("Commands: /status, /check, /auth, /login, /config, /set_cookie")
     elif command == "/auth":
         telegram.send(html.escape(auth_message))
     elif command == "/config":
@@ -390,6 +442,7 @@ def handle_command(command_text: str, settings: Settings, state: StateStore, tel
             "Luxmed monitor config:\n"
             f"Interval: <code>{settings.poll_interval_seconds}s</code>\n"
             f"Auth expiry warning: <code>{settings.auth_expiry_warn_minutes}m</code>\n"
+            f"Auto login: <code>{'on' if settings.luxmed_login and settings.luxmed_password else 'off'}</code>\n"
             f"Doctor regex: <code>{html.escape(settings.doctor_regex or '-')}</code>\n"
             f"Text regex: <code>{html.escape(settings.match_text_regex or '-')}</code>\n"
             f"State file: <code>{html.escape(settings.state_file)}</code>"
@@ -428,6 +481,10 @@ def handle_command(command_text: str, settings: Settings, state: StateStore, tel
         cookie_header = upsert_cookie(active_cookie_header(settings, state), "LXToken", argument)
         state.set("luxmed_cookie_header", cookie_header)
         telegram.send("Luxmed LXToken updated.")
+    elif command == "/login":
+        cookie_header = refresh_auth_token(settings, state)
+        _, auth_message = auth_token_status(cookie_header, settings.auth_expiry_warn_minutes)
+        telegram.send(f"Luxmed token refreshed.\n{html.escape(auth_message)}")
 
 
 def main() -> int:
@@ -446,9 +503,15 @@ def main() -> int:
         try:
             cookie_header = active_cookie_header(settings, state)
             auth_key, auth_message = auth_token_status(cookie_header, settings.auth_expiry_warn_minutes)
-            if auth_key.startswith(("missing", "invalid", "expired", "expiring")) and auth_key != last_auth_warning_key:
-                telegram.send(f"<b>Luxmed auth warning</b>\n{html.escape(auth_message)}")
-                last_auth_warning_key = auth_key
+            if auth_key.startswith(("missing", "invalid", "expired", "expiring")):
+                if settings.luxmed_login and settings.luxmed_password:
+                    cookie_header = refresh_auth_token(settings, state)
+                    auth_key, auth_message = auth_token_status(cookie_header, settings.auth_expiry_warn_minutes)
+                    telegram.send(f"<b>Luxmed auth refreshed</b>\n{html.escape(auth_message)}")
+                    last_auth_warning_key = ""
+                elif auth_key != last_auth_warning_key:
+                    telegram.send(f"<b>Luxmed auth warning</b>\n{html.escape(auth_message)}")
+                    last_auth_warning_key = auth_key
 
             for command_text in telegram.poll_commands():
                 command = command_text.split(maxsplit=1)[0].lower()
@@ -483,8 +546,13 @@ def main() -> int:
             LOGGER.exception(last_status)
             if status_code in {401, 403}:
                 warning_key = f"http-auth:{status_code}"
-                if warning_key != last_http_auth_warning_key:
-                    telegram.send("Luxmed auth failed. Refresh LUXMED_COOKIE_HEADER from browser.")
+                if settings.luxmed_login and settings.luxmed_password:
+                    cookie_header = refresh_auth_token(settings, state)
+                    _, auth_message = auth_token_status(cookie_header, settings.auth_expiry_warn_minutes)
+                    telegram.send(f"<b>Luxmed auth refreshed after HTTP {status_code}</b>\n{html.escape(auth_message)}")
+                    last_http_auth_warning_key = ""
+                elif warning_key != last_http_auth_warning_key:
+                    telegram.send("Luxmed auth failed. Configure LUXMED_LOGIN/LUXMED_PASSWORD or refresh LUXMED_COOKIE_HEADER from browser.")
                     last_http_auth_warning_key = warning_key
         except StopIteration:
             pass
