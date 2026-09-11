@@ -61,7 +61,7 @@ Copy the project to the VM:
 
 ```bash
 rsync -av --exclude .git --exclude .env --exclude .venv --exclude .chrome-profile \
-  /Users/yauhenisheima/Sources/Luxmed/ user@vm:/opt/luxmed-monitor/
+  /Users/yauhenisheima/Sources/Luxmed/luxmed-api/ user@vm:/opt/luxmed-monitor/
 ```
 
 On the VM:
