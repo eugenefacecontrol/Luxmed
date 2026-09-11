@@ -83,7 +83,58 @@
     return String(value ?? "").replace(/'/g, "'\"'\"'");
   }
 
-  function buildExport(url, source) {
+  function doctorName(term) {
+    const doctor = term?.doctor || {};
+    return [doctor.academicTitle, doctor.firstName, doctor.lastName]
+      .map((part) => String(part || "").trim())
+      .filter(Boolean)
+      .join(" ");
+  }
+
+  function summarizeTermsResponse(payload) {
+    const service = payload?.termsForService;
+    if (!service || typeof service !== "object") {
+      return null;
+    }
+
+    const terms = [];
+    for (const day of service.termsForDays || []) {
+      for (const term of day?.terms || []) {
+        terms.push({
+          dateTimeFrom: term.dateTimeFrom,
+          dateTimeTo: term.dateTimeTo,
+          doctorName: doctorName(term),
+          doctorId: term.doctor?.id ?? null,
+          clinic: term.clinic,
+          clinicGroup: term.clinicGroup,
+          clinicId: term.clinicId,
+          roomId: term.roomId,
+          serviceId: term.serviceId ?? service.serviceVariantId,
+          scheduleId: term.scheduleId,
+          isTelemedicine: Boolean(term.isTelemedicine),
+          correlationId: day?.correlationId ?? payload?.correlationId ?? null,
+        });
+      }
+    }
+
+    const dayStatuses = (service.termsInfoForDays || []).map((day) => ({
+      day: day.day,
+      termsStatus: day.termsStatus,
+      termsNumber: day.termsCounter?.termsNumber ?? null,
+      message: day.message,
+    }));
+
+    return {
+      success: payload?.success ?? null,
+      correlationId: payload?.correlationId ?? null,
+      serviceVariantId: service.serviceVariantId,
+      termsCount: terms.length,
+      termsPreview: terms.slice(0, 20),
+      dayStatuses,
+    };
+  }
+
+  function buildExport(url, source, responsePayload = null) {
     const cookieHeader = document.cookie || "";
     const cookies = parseCookies(cookieHeader);
     const cookieNames = Object.keys(cookies);
@@ -103,6 +154,7 @@
       missingVisibleCookies,
       tokenExpiresAt,
       importantParams: queryObject(url),
+      responseSummary: summarizeTermsResponse(responsePayload),
       note:
         missingVisibleCookies.includes("Authorization-Token")
           ? "Authorization-Token is not visible to this userscript. If the bot returns 401/403, copy the full Cookie header manually from DevTools."
@@ -117,10 +169,10 @@
     ].join("\n");
   }
 
-  function saveRequest(url, source = "network") {
+  function saveRequest(url, source = "network", responsePayload = null) {
     if (!url) return false;
 
-    const config = buildExport(url, source);
+    const config = buildExport(url, source, responsePayload);
     localStorage.setItem(STORAGE_KEY, JSON.stringify(config));
     renderButton(config);
     console.info("[Luxmed exporter] captured terms request", config);
@@ -165,9 +217,12 @@
       return;
     }
 
-    const output = `${toEnv(config)}\n\n# JSON backup:\n# ${JSON.stringify(config)}`;
+    const responseNote = config.responseSummary
+      ? `\n# Captured terms: ${config.responseSummary.termsCount}`
+      : "\n# Captured terms: not available yet; click Search again if you want response summary.";
+    const output = `${toEnv(config)}${responseNote}\n\n# JSON backup:\n# ${JSON.stringify(config)}`;
     GM_setClipboard(output, "text");
-    alert("Luxmed URL/cookies copied. Replace only LUXMED_* values in .env.");
+    alert(`Luxmed URL/cookies copied. Terms in last response: ${config.responseSummary?.termsCount ?? "unknown"}. Replace only LUXMED_* values in .env.`);
   }
 
   function renderButton(config) {
@@ -210,16 +265,33 @@
   window.fetch = function (...args) {
     const input = args[0];
     const url = typeof input === "string" ? input : input?.url;
-    if (isTermsUrl(url)) {
-      saveRequest(absoluteUrl(url));
-    }
-    return originalFetch.apply(this, args);
+    const termsUrl = isTermsUrl(url) ? absoluteUrl(url) : null;
+    return originalFetch.apply(this, args).then((response) => {
+      if (termsUrl) {
+        response
+          .clone()
+          .json()
+          .then((payload) => saveRequest(termsUrl, "fetch", payload))
+          .catch(() => saveRequest(termsUrl, "fetch"));
+      }
+      return response;
+    });
   };
 
   const originalOpen = XMLHttpRequest.prototype.open;
   XMLHttpRequest.prototype.open = function (method, url, ...rest) {
-    if (isTermsUrl(url)) {
-      saveRequest(absoluteUrl(url));
+    const termsUrl = isTermsUrl(url) ? absoluteUrl(url) : null;
+    if (termsUrl) {
+      this.addEventListener("load", () => {
+        let payload = null;
+        try {
+          payload = JSON.parse(this.responseText);
+        } catch {
+          payload = null;
+        }
+        saveRequest(termsUrl, "xmlhttprequest", payload);
+      });
+      saveRequest(termsUrl, "xmlhttprequest-open");
     }
     return originalOpen.call(this, method, url, ...rest);
   };

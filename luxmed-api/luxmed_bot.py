@@ -10,7 +10,7 @@ import time
 from dataclasses import dataclass
 from datetime import datetime, timezone
 from typing import Any
-from urllib.parse import urlparse
+from urllib.parse import parse_qsl, urlencode, urlparse
 
 import requests
 
@@ -54,6 +54,9 @@ class Settings:
     luxmed_cookie_header: str | None
     luxmed_base_uri: str
     doctor_regex: str | None
+    clinic_regex: str | None
+    time_from: str | None
+    time_to: str | None
     match_text_regex: str | None
     poll_interval_seconds: int
     notify_on_every_match: bool
@@ -76,6 +79,9 @@ class Settings:
             luxmed_cookie_header=env("LUXMED_COOKIE_HEADER") or None,
             luxmed_base_uri=env("LUXMED_BASE_URI", "https://portalpacjenta.luxmed.pl"),
             doctor_regex=env("LUXMED_DOCTOR_REGEX") or None,
+            clinic_regex=env("LUXMED_CLINIC_REGEX") or None,
+            time_from=env("LUXMED_TIME_FROM") or None,
+            time_to=env("LUXMED_TIME_TO") or None,
             match_text_regex=env("LUXMED_MATCH_TEXT_REGEX") or None,
             poll_interval_seconds=int(env("POLL_INTERVAL_SECONDS", "60")),
             notify_on_every_match=env_bool("NOTIFY_ON_EVERY_MATCH", False),
@@ -310,106 +316,228 @@ def fetch_luxmed(settings: Settings, cookie_header: str) -> tuple[Any, str]:
         return None, text
 
 
-def walk(value: Any) -> list[Any]:
-    items = [value]
-    if isinstance(value, dict):
-        for nested in value.values():
-            items.extend(walk(nested))
-    elif isinstance(value, list):
-        for nested in value:
-            items.extend(walk(nested))
-    return items
+def doctor_name(term: dict[str, Any]) -> str:
+    doctor = term.get("doctor")
+    if not isinstance(doctor, dict):
+        return ""
+
+    parts = [
+        str(doctor.get("academicTitle") or "").strip(),
+        str(doctor.get("firstName") or "").strip(),
+        str(doctor.get("lastName") or "").strip(),
+    ]
+    return " ".join(part for part in parts if part)
 
 
-def flatten_text(value: Any) -> str:
-    if isinstance(value, (dict, list)):
-        return json.dumps(value, ensure_ascii=False, sort_keys=True)
-    return str(value)
+def normalize_term(term: dict[str, Any], day: dict[str, Any], service_id: Any) -> dict[str, Any]:
+    return {
+        "dateTimeFrom": term.get("dateTimeFrom"),
+        "dateTimeTo": term.get("dateTimeTo"),
+        "doctorName": doctor_name(term),
+        "doctorId": (term.get("doctor") or {}).get("id") if isinstance(term.get("doctor"), dict) else None,
+        "clinic": term.get("clinic"),
+        "clinicGroup": term.get("clinicGroup"),
+        "clinicId": term.get("clinicId"),
+        "roomId": term.get("roomId"),
+        "serviceId": term.get("serviceId") or service_id,
+        "scheduleId": term.get("scheduleId"),
+        "isTelemedicine": term.get("isTelemedicine"),
+        "day": day.get("day"),
+        "correlationId": day.get("correlationId"),
+        "raw": term,
+    }
 
 
-def looks_like_term(value: Any) -> bool:
-    if not isinstance(value, dict):
-        return False
-
-    keys = {str(key).lower() for key in value.keys()}
-    has_time = any("date" in key or "time" in key or "hour" in key or "term" in key for key in keys)
-    has_person_or_place = any(
-        "doctor" in key
-        or "physician" in key
-        or "specialist" in key
-        or "resource" in key
-        or "clinic" in key
-        or "room" in key
-        or "address" in key
-        for key in keys
+def term_search_text(term: dict[str, Any]) -> str:
+    return " ".join(
+        str(term.get(key) or "")
+        for key in ("dateTimeFrom", "dateTimeTo", "doctorName", "clinic", "clinicGroup", "serviceId", "scheduleId")
     )
-    return has_time and has_person_or_place
 
 
-def extract_terms(payload: Any, raw_text: str) -> list[str]:
+def extract_terms(payload: Any, raw_text: str) -> list[dict[str, Any]]:
     if payload is None:
         stripped = re.sub(r"<[^>]+>", " ", raw_text)
         stripped = re.sub(r"\s+", " ", stripped).strip()
-        return [stripped[:1200]] if stripped else []
-
-    terms = [flatten_text(item) for item in walk(payload) if looks_like_term(item)]
-    if terms:
-        return terms
-
-    if isinstance(payload, list) and payload:
-        return [flatten_text(item) for item in payload[:20]]
+        return [{"rawText": stripped[:1200]}] if stripped else []
 
     if isinstance(payload, dict):
-        for key in ("terms", "items", "data", "results", "availableTerms"):
-            value = payload.get(key)
-            if isinstance(value, list) and value:
-                return [flatten_text(item) for item in value[:20]]
+        service = payload.get("termsForService")
+        if isinstance(service, dict):
+            service_id = service.get("serviceVariantId")
+            normalized: list[dict[str, Any]] = []
+            for day in service.get("termsForDays") or []:
+                if not isinstance(day, dict):
+                    continue
+                for term in day.get("terms") or []:
+                    if isinstance(term, dict):
+                        normalized.append(normalize_term(term, day, service_id))
+            return normalized
+
+        terms = payload.get("terms")
+        if isinstance(terms, list):
+            return [normalize_term(term, {}, None) for term in terms if isinstance(term, dict)]
+
+    if isinstance(payload, list):
+        return [normalize_term(term, {}, None) for term in payload if isinstance(term, dict)]
 
     return []
 
 
-def matches_filters(terms: list[str], raw_text: str, settings: Settings) -> list[str]:
+def time_value(date_time: Any) -> str | None:
+    if not date_time:
+        return None
+
+    match = re.search(r"T(\d{2}:\d{2})", str(date_time))
+    if match:
+        return match.group(1)
+
+    match = re.search(r"\b(\d{2}:\d{2})\b", str(date_time))
+    return match.group(1) if match else None
+
+
+def matches_time_window(term: dict[str, Any], settings: Settings) -> bool:
+    if not settings.time_from and not settings.time_to:
+        return True
+
+    value = time_value(term.get("dateTimeFrom"))
+    if not value:
+        return False
+
+    if settings.time_from and value < settings.time_from:
+        return False
+
+    if settings.time_to and value > settings.time_to:
+        return False
+
+    return True
+
+
+def matches_filters(terms: list[dict[str, Any]], raw_text: str, settings: Settings) -> list[dict[str, Any]]:
     candidates = terms or []
 
     if settings.doctor_regex:
         pattern = re.compile(settings.doctor_regex, re.IGNORECASE)
-        candidates = [term for term in candidates if pattern.search(term)]
+        candidates = [term for term in candidates if pattern.search(term_search_text(term))]
+
+    if settings.clinic_regex:
+        pattern = re.compile(settings.clinic_regex, re.IGNORECASE)
+        candidates = [term for term in candidates if pattern.search(term_search_text(term))]
+
+    candidates = [term for term in candidates if matches_time_window(term, settings)]
 
     if settings.match_text_regex:
         pattern = re.compile(settings.match_text_regex, re.IGNORECASE)
-        if candidates:
-            candidates = [term for term in candidates if pattern.search(term)]
-        elif pattern.search(raw_text):
-            candidates = [raw_text[:1200]]
+        candidates = [term for term in candidates if pattern.search(term_search_text(term))]
+        if not candidates and pattern.search(raw_text):
+            candidates = [{"rawText": raw_text[:1200]}]
 
     return candidates
 
 
-def signature(matches: list[str]) -> str:
-    normalized = "\n".join(sorted(matches))
+def signature(matches: list[dict[str, Any]]) -> str:
+    normalized = json.dumps(
+        [
+            {
+                "dateTimeFrom": term.get("dateTimeFrom"),
+                "doctorId": term.get("doctorId"),
+                "clinicId": term.get("clinicId"),
+                "roomId": term.get("roomId"),
+                "serviceId": term.get("serviceId"),
+                "scheduleId": term.get("scheduleId"),
+            }
+            for term in matches
+        ],
+        ensure_ascii=False,
+        sort_keys=True,
+    )
     return str(hash(normalized))
 
 
-def format_match_message(matches: list[str], settings: Settings) -> str:
-    params = dict(re.findall(r"[?&]([^=&]+)=([^&]*)", settings.luxmed_request_url))
-    service = params.get("serviceVariantId", "?")
-    date_from = params.get("searchDateFrom", "?")
-    date_to = params.get("searchDateTo", "?")
+def results_page_url(settings: Settings) -> str:
+    return f"{settings.luxmed_base_uri.rstrip('/')}/PatientPortal/NewPortal/Page/Reservation/Results"
 
-    preview = "\n\n".join(matches[:5])
-    if len(matches) > 5:
-        preview += f"\n\n...and {len(matches) - 5} more"
+
+def request_params(settings: Settings) -> dict[str, str]:
+    return dict(parse_qsl(urlparse(settings.luxmed_request_url).query, keep_blank_values=True))
+
+
+def term_reference_url(term: dict[str, Any], settings: Settings) -> str:
+    params = request_params(settings)
+    slot_params = {
+        "dateTimeFrom": term.get("dateTimeFrom"),
+        "dateTimeTo": term.get("dateTimeTo"),
+        "doctorId": term.get("doctorId"),
+        "clinicId": term.get("clinicId"),
+        "roomId": term.get("roomId"),
+        "serviceId": term.get("serviceId"),
+        "scheduleId": term.get("scheduleId"),
+        "correlationId": term.get("correlationId"),
+        "referralId": params.get("referralId"),
+        "referralTypeId": params.get("referralTypeId"),
+        "processId": params.get("processId"),
+    }
+    fragment = urlencode({key: str(value) for key, value in slot_params.items() if value not in (None, "")})
+    return f"{results_page_url(settings)}#{fragment}"
+
+
+def term_identifier(term: dict[str, Any]) -> str:
+    parts = [
+        f"serviceId={term.get('serviceId') or '?'}",
+        f"scheduleId={term.get('scheduleId') or '?'}",
+        f"roomId={term.get('roomId') or '?'}",
+        f"clinicId={term.get('clinicId') or '?'}",
+        f"doctorId={term.get('doctorId') or '?'}",
+    ]
+    return "; ".join(parts)
+
+
+def format_term(term: dict[str, Any], settings: Settings) -> str:
+    if term.get("rawText"):
+        return html.escape(str(term["rawText"]))
+
+    doctor = term.get("doctorName") or "Unknown doctor"
+    clinic = term.get("clinic") or term.get("clinicGroup") or "Unknown clinic"
+    when_from = term.get("dateTimeFrom") or "?"
+    when_to = term.get("dateTimeTo") or "?"
+    visit_type = "telemedicine" if term.get("isTelemedicine") else "facility"
+    slot_url = term_reference_url(term, settings)
 
     return (
-        "<b>Luxmed: found matching appointment terms</b>\n"
-        f"ServiceVariantId: <code>{html.escape(service)}</code>\n"
-        f"Dates: <code>{html.escape(date_from)}</code> - <code>{html.escape(date_to)}</code>\n"
-        f"Matches: <code>{len(matches)}</code>\n\n"
-        f"<pre>{html.escape(preview[:3500])}</pre>"
+        f"<b>{html.escape(str(when_from))} - {html.escape(str(when_to))}</b>\n"
+        f"{html.escape(str(doctor))}\n"
+        f"{html.escape(str(clinic))}\n"
+        f"<code>{html.escape(visit_type)}; {html.escape(term_identifier(term))}</code>\n"
+        f"<a href=\"{html.escape(slot_url)}\">Open Luxmed result</a>"
     )
 
 
-def run_once(settings: Settings, cookie_header: str) -> tuple[int, list[str]]:
+def format_match_message(matches: list[dict[str, Any]], settings: Settings) -> str:
+    params = request_params(settings)
+    service = params.get("serviceVariantId", "?")
+    date_from = params.get("searchDateFrom", "?")
+    date_to = params.get("searchDateTo", "?")
+    referral_id = params.get("referralId", "?")
+    process_id = params.get("processId", "?")
+
+    preview = "\n\n".join(format_term(term, settings) for term in matches[:8])
+    if len(matches) > 8:
+        preview += f"\n\n...and {len(matches) - 8} more"
+
+    return (
+        "<b>Luxmed: found appointment windows</b>\n"
+        f"ServiceVariantId: <code>{html.escape(service)}</code>\n"
+        f"ReferralId: <code>{html.escape(referral_id)}</code>\n"
+        f"ProcessId: <code>{html.escape(process_id)}</code>\n"
+        f"Dates: <code>{html.escape(date_from)}</code> - <code>{html.escape(date_to)}</code>\n"
+        f"Matches: <code>{len(matches)}</code>\n\n"
+        f"{preview[:3300]}\n\n"
+        f"Results page: {html.escape(results_page_url(settings))}\n"
+        f"API request: {html.escape(settings.luxmed_request_url)}"
+    )
+
+
+def run_once(settings: Settings, cookie_header: str) -> tuple[int, list[dict[str, Any]]]:
     payload, raw_text = fetch_luxmed(settings, cookie_header)
     terms = extract_terms(payload, raw_text)
     matches = matches_filters(terms, raw_text, settings)
@@ -520,7 +648,10 @@ def main() -> int:
                 elif command == "/check":
                     cookie_header = active_cookie_header(settings, state)
                     total, matches = run_once(settings, cookie_header)
-                    telegram.send(f"Manual check: terms={total}, matches={len(matches)}")
+                    if matches:
+                        telegram.send(format_match_message(matches, settings))
+                    else:
+                        telegram.send(f"Manual check: terms={total}, matches=0. No matching appointment windows right now.")
                 else:
                     handle_command(command_text, settings, state, telegram, auth_message)
 

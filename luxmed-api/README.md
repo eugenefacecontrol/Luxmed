@@ -18,6 +18,12 @@ The bot can generate `Authorization-Token` itself when `LUXMED_LOGIN` and `LUXME
 
 The bot decodes `Authorization-Token`; when it is expired or will expire within `AUTH_EXPIRY_WARN_MINUTES`, it calls `/PatientPortal/Account/LogIn`, saves the new token in `STATE_FILE`, and continues polling.
 
+When appointment windows appear in `termsForService.termsForDays[].terms[]`, the bot sends the available date/time, doctor, clinic, `serviceId`, `scheduleId`, `roomId`, `clinicId`, `doctorId`, the Luxmed results page, and the API request URL. Empty `termsForDays` means there are no available appointment windows yet, even when `termsInfoForDays` contains day status messages.
+
+Each Telegram appointment item includes an `Open Luxmed result` link. Luxmed does not expose a plain static booking link in the saved HTML; the link opens the Results page and carries slot identifiers in the URL fragment so the right window can be identified quickly.
+
+The Tampermonkey exporter also stores a `responseSummary` in the JSON backup after it sees the `terms/index` response. This summary includes `termsCount`, a preview of the first terms, and day status counters, so you can confirm it captured the correct search.
+
 The search parameters are taken from the captured `LUXMED_REQUEST_URL`. For the current `terms/index` endpoint, the useful parameters are:
 
 - `searchPlace.id`, `searchPlace.name`, `searchPlace.type`
@@ -31,6 +37,14 @@ The search parameters are taken from the captured `LUXMED_REQUEST_URL`. For the 
 - `serviceVariantSource`
 - `locationReplaced`
 - `delocalized`
+
+Optional filters:
+
+- `LUXMED_DOCTOR_REGEX`
+- `LUXMED_CLINIC_REGEX`
+- `LUXMED_TIME_FROM` (`HH:MM`)
+- `LUXMED_TIME_TO` (`HH:MM`)
+- `LUXMED_MATCH_TEXT_REGEX`
 
 ## Telegram Commands
 
