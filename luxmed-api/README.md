@@ -12,6 +12,21 @@ This project monitors Luxmed Patient Portal appointment search results and sends
 6. Replace `LUXMED_REQUEST_URL` in `.env` on the VM. Keep `LUXMED_COOKIE_HEADER` empty unless Luxmed blocks login/fetch without browser session cookies.
 7. Run with Docker Compose.
 
+To add another appointment search after the bot is already running:
+
+1. Open the new Luxmed appointment search results.
+2. Click Search in Luxmed so the exporter captures the latest `terms/index` request.
+3. Press `Alt+J` / `Option+J` to copy a Telegram `/add_job ...` command.
+4. Send that command to the Telegram bot.
+
+The added search is saved in `STATE_FILE`, so it survives container restarts without editing `.env`.
+
+The Tampermonkey exporter uses `Yauheni` as the default bot account name in copied `/add_job` commands. To change it in the browser console:
+
+```js
+localStorage.setItem("luxmed:accountName", "Second user")
+```
+
 ## Important Inputs
 
 The bot can generate `Authorization-Token` itself when `LUXMED_LOGIN` and `LUXMED_PASSWORD` are configured. The exporter copies the browser cookie header only as a commented fallback because Luxmed may require session or Incapsula anti-bot cookies on some requests.
@@ -69,6 +84,44 @@ LUXMED_JOBS_JSON='[
 ]'
 ```
 
+Each `/jobs` entry includes two links:
+
+- `Open Luxmed result` opens the Luxmed results page.
+- `Open API request` opens the captured request for that exact job, so the second and later jobs are visible too.
+
+For several Luxmed users, use `LUXMED_ACCOUNTS_JSON`. Each account has its own login/password, its own runtime token in `STATE_FILE`, and its own jobs.
+
+```env
+LUXMED_ACCOUNTS_JSON='[
+  {
+    "name": "Yauheni",
+    "login": "first-user-login",
+    "password": "first-user-password",
+    "jobs": [
+      {
+        "name": "Psychiatry",
+        "request_url": "https://portalpacjenta.luxmed.pl/PatientPortal/NewPortal/terms/index?...serviceVariantId=9158..."
+      },
+      {
+        "name": "Dermatology",
+        "request_url": "https://portalpacjenta.luxmed.pl/PatientPortal/NewPortal/terms/index?...serviceVariantId=4448..."
+      }
+    ]
+  },
+  {
+    "name": "Second user",
+    "login": "second-user-login",
+    "password": "second-user-password",
+    "jobs": [
+      {
+        "name": "Dermatology",
+        "request_url": "https://portalpacjenta.luxmed.pl/PatientPortal/NewPortal/terms/index?...serviceVariantId=4448..."
+      }
+    ]
+  }
+]'
+```
+
 ## Telegram Commands
 
 The bot sends an inline button menu on startup and on `/help`. Buttons trigger the same commands below.
@@ -76,11 +129,13 @@ The bot sends an inline button menu on startup and on `/help`. Buttons trigger t
 - `/status`
 - `/check`
 - `/jobs`
+- `/add_job [account] [name] <Luxmed terms/index URL>`
+- `/remove_job [account] <runtime job name or URL>`
 - `/auth`
 - `/login`
 - `/config`
 - `/interval <seconds>` (for example `/interval 3600`)
-- `/live [seconds]` (enables status after every check; optionally also changes interval)
+- `/live [seconds]` (enables one editable live status message and refreshes it every N seconds; for example `/live 5`)
 - `/live_off`
 - `/notify_once`
 - `/notify_every`
@@ -89,6 +144,63 @@ The bot sends an inline button menu on startup and on `/help`. Buttons trigger t
 - `/help`
 
 Runtime token/cookie updates are saved to `STATE_FILE` (`/data/luxmed_state.json` in Docker). With `LUXMED_LOGIN` and `LUXMED_PASSWORD`, the bot refreshes `Authorization-Token` automatically without editing `.env` or restarting the container.
+
+With multiple accounts, token/cookie commands accept an optional account name first, for example:
+
+```text
+/login Yauheni
+/set_auth Yauheni <Authorization-Token>
+/set_cookie Second user Authorization-Token=...; XSRF-TOKEN=...
+```
+
+Runtime appointment searches can also target an account by name:
+
+```text
+/add_job Dermatology https://portalpacjenta.luxmed.pl/PatientPortal/NewPortal/terms/index?...
+/add_job Yauheni Dermatology https://portalpacjenta.luxmed.pl/PatientPortal/NewPortal/terms/index?...
+```
+
+If the job name is omitted, the bot derives one from `serviceVariantId` and `searchDateFrom`.
+
+Runtime searches can be removed by exact runtime job name or by exact captured URL:
+
+```text
+/remove_job Dermatology
+/remove_job Yauheni Dermatology
+```
+
+`/remove_job` removes only jobs saved in `STATE_FILE`. Searches configured through `.env` (`LUXMED_REQUEST_URL`, `LUXMED_JOBS_JSON`, or `LUXMED_ACCOUNTS_JSON`) must be removed by editing `.env`.
+
+`/interval` controls the normal background polling interval. `/live 5` is separate: while live mode is enabled, the bot checks and edits the live status every 5 seconds. The live status includes auth state, term/match counts, and the first matching slots with clickable Luxmed result links.
+
+If Luxmed returns HTTP `429`, the bot pauses Luxmed requests for `RATE_LIMIT_BACKOFF_SECONDS` (default `300`) and keeps the live message updated with the retry time instead of repeatedly hitting the API.
+
+Transient Telegram network failures (`ReadTimeout`, SSL EOF, remote disconnects) are treated as temporary delivery/polling issues. The bot logs a throttled warning without printing the Telegram bot token URL and keeps monitoring. Configure `TELEGRAM_TIMEOUT_SECONDS` if the VM network needs a different request timeout.
+
+## Upstream Reference
+
+Useful implementation notes were cross-checked against `dyrkin/luxmed-bot` in `/Users/yauhenisheima/Sources/Luxmed/luxmed-bot-upstream`.
+
+The upstream project is a larger Scala/Akka Telegram bot with PostgreSQL persistence. It is too heavy to merge directly into this Python monitor, but it documents several Luxmed Patient Portal flows worth reusing:
+
+- Dictionary endpoints:
+  - `NewPortal/Dictionary/cities`
+  - `NewPortal/Dictionary/serviceVariantsGroups`
+  - `NewPortal/Dictionary/facilitiesAndDoctors`
+- Search endpoint:
+  - `NewPortal/terms/index`
+- Booking chain:
+  - `security/getforgerytoken`
+  - `NewPortal/reservation/lockterm`
+  - `NewPortal/reservation/confirm`
+  - on failure after lock: `NewPortal/reservation/releaseterm?reservationId=<temporaryReservationId>`
+- Rebooking chain:
+  - `NewPortal/reservation/changeterm`
+- Existing visits/history:
+  - old API `Events`
+  - old API `events/Visit/<reservationId>` for cancellation
+
+The Python monitor now preserves the slot fields needed to build a future `reservation/lockterm` request payload, but it intentionally does not perform booking yet. Booking should stay behind an explicit Telegram confirmation step.
 
 ## Copy And Run
 

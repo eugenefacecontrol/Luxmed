@@ -1,22 +1,24 @@
 // ==UserScript==
 // @name Luxmed request exporter
 // @namespace http://tampermonkey.net/
-// @version 2026-09-11
+// @version 2026-09-14
 // @description Copy Luxmed appointment search request config for the VM monitor.
 // @author You
 // @match https://portalpacjenta.luxmed.pl/*
 // @require https://jolly-newton-babd42.netlify.app/UsefulScripts.js
 // @icon https://www.google.com/s2/favicons?sz=64&domain=luxmed.pl
-// @grant GM_setClipboard
+// @grant none
 // ==/UserScript==
 
-/* global GM_setClipboard */
+/* global copySomething */
 
 (function () {
   "use strict";
 
   const TARGET_PATH = "/PatientPortal/NewPortal/terms/index";
   const STORAGE_KEY = "luxmed:lastTermsRequest";
+  const ACCOUNT_NAME_STORAGE_KEY = "luxmed:accountName";
+  const DEFAULT_ACCOUNT_NAME = "Yauheni";
   const IMPORTANT_COOKIES = [
     "Authorization-Token",
     "XSRF-TOKEN",
@@ -81,6 +83,14 @@
 
   function envQuote(value) {
     return String(value ?? "").replace(/'/g, "'\"'\"'");
+  }
+
+  function copyText(value) {
+    if (typeof copySomething === "function") {
+      copySomething(value);
+      return;
+    }
+    navigator.clipboard.writeText(value);
   }
 
   function doctorName(term) {
@@ -174,6 +184,45 @@
     return lines.join("\n");
   }
 
+  function normalizeCommandPart(value) {
+    return String(value || "")
+      .replace(/\s+/g, " ")
+      .trim()
+      .slice(0, 120);
+  }
+
+  function jobNameFromPage() {
+    const items = [
+      ...document.querySelectorAll('div[class="item"]'),
+      ...document.querySelectorAll("div.item"),
+    ];
+    for (const item of items) {
+      const text = normalizeCommandPart(item.textContent);
+      if (text) return text;
+    }
+    return "";
+  }
+
+  function defaultJobName(config) {
+    const pageName = jobNameFromPage();
+    if (pageName) return pageName;
+
+    const params = config.importantParams || queryObject(config.requestUrl);
+    const service = params.serviceVariantId;
+    const dateFrom = params.searchDateFrom;
+    if (service && dateFrom) return `service-${service}-${dateFrom}`;
+    if (service) return `service-${service}`;
+    return "luxmed-search";
+  }
+
+  function accountName() {
+    return (localStorage.getItem(ACCOUNT_NAME_STORAGE_KEY) || DEFAULT_ACCOUNT_NAME).trim();
+  }
+
+  function toTelegramAddJob(config) {
+    return `/add_job ${normalizeCommandPart(accountName())} ${normalizeCommandPart(defaultJobName(config))} ${config.requestUrl}`;
+  }
+
   function saveRequest(url, source = "network", responsePayload = null) {
     if (!url) return false;
 
@@ -225,9 +274,32 @@
     const responseNote = config.responseSummary
       ? `\n# Captured terms: ${config.responseSummary.termsCount}`
       : "\n# Captured terms: not available yet; click Search again if you want response summary.";
-    const output = `${toEnv(config)}${responseNote}\n\n# JSON backup:\n# ${JSON.stringify(config)}`;
-    GM_setClipboard(output, "text");
+    const output = `${toEnv(config)}${responseNote}\n\n# Telegram runtime add command:\n# ${toTelegramAddJob(config)}\n\n# JSON backup:\n# ${JSON.stringify(config)}`;
+    copyText(output);
     alert(`Luxmed request URL copied. Terms in last response: ${config.responseSummary?.termsCount ?? "unknown"}. Cookie header is included only as a commented fallback.`);
+  }
+
+  function copyTelegramAddJobCommand() {
+    const raw = localStorage.getItem(STORAGE_KEY);
+    if (!raw) {
+      scanAlreadyLoadedRequests();
+    }
+
+    const updatedRaw = localStorage.getItem(STORAGE_KEY);
+    if (!updatedRaw) {
+      alert("Appointment request URL was not captured. Click Search in Luxmed again, then press Alt+J.");
+      return;
+    }
+
+    const config = JSON.parse(updatedRaw);
+    if (!config.requestUrl) {
+      alert("Appointment request URL is missing. Click Search in Luxmed again, then press Alt+J.");
+      return;
+    }
+
+    const command = toTelegramAddJob(config);
+    copyText(command);
+    alert(`Telegram add command copied:\n${command}`);
   }
 
   function renderButton(config) {
@@ -262,7 +334,7 @@
         : "Copy Luxmed env (check auth)"
       : "Luxmed: click Search";
     button.title = hasAuth
-        ? "Copies Docker .env request URL for Luxmed monitor"
+        ? "Copies Docker .env request URL for Luxmed monitor. Press Alt+J to copy only the Telegram /add_job command."
         : "Cookie header is optional fallback; login/password should generate Authorization-Token";
   }
 
@@ -321,9 +393,9 @@
       event.getHelp();
     }
 
-    if (event.altKey && event.code === "KeyL") {
-      event.preventDefault();
-      copyConfig();
+    if (typeof event.executeAltEvent === "function") {
+      event.executeAltEvent("L", "Copy Luxmed VM env", copyConfig);
+      event.executeAltEvent("J", "Copy Luxmed add job command", copyTelegramAddJobCommand);
     }
   });
 

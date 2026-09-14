@@ -6,6 +6,7 @@ from pathlib import Path
 import requests
 
 from luxmed_bot import (
+    LuxmedAccount,
     SearchJob,
     Settings,
     extract_terms,
@@ -58,15 +59,22 @@ def build_settings() -> Settings:
     return Settings(
         telegram_bot_token="local-check",
         telegram_target_ids=["0"],
-        luxmed_login=required("LUXMED_LOGIN"),
-        luxmed_password=required("LUXMED_PASSWORD"),
-        luxmed_cookie_header=os.getenv("LUXMED_COOKIE_HEADER") or None,
         luxmed_base_uri=os.getenv("LUXMED_BASE_URI", "https://portalpacjenta.luxmed.pl"),
-        jobs=jobs,
+        accounts=[
+            LuxmedAccount(
+                name=os.getenv("LUXMED_ACCOUNT_NAME", "local-check"),
+                login=required("LUXMED_LOGIN"),
+                password=required("LUXMED_PASSWORD"),
+                cookie_header=os.getenv("LUXMED_COOKIE_HEADER") or None,
+                jobs=jobs,
+            )
+        ],
         poll_interval_seconds=60,
+        live_status_interval_seconds=5,
         notify_on_every_match=False,
         request_timeout_seconds=int(os.getenv("REQUEST_TIMEOUT_SECONDS", "30")),
         auth_expiry_warn_minutes=2,
+        rate_limit_backoff_seconds=int(os.getenv("RATE_LIMIT_BACKOFF_SECONDS", "300")),
         state_file="/tmp/luxmed_state.json",
     )
 
@@ -74,38 +82,39 @@ def build_settings() -> Settings:
 def main() -> int:
     load_dotenv()
     settings = build_settings()
-    cookie_header = settings.luxmed_cookie_header or ""
 
-    print("Logging in to Luxmed...")
-    token = login_luxmed(settings, cookie_header)
-    cookie_header = upsert_cookie(cookie_header, "Authorization-Token", token)
-    print(f"Login OK. Token length: {len(token)}")
+    for account in settings.accounts:
+        cookie_header = account.cookie_header or ""
+        print(f"Logging in to Luxmed: {account.name}")
+        token = login_luxmed(settings, account, cookie_header)
+        cookie_header = upsert_cookie(cookie_header, "Authorization-Token", token)
+        print(f"Login OK. Token length: {len(token)}")
 
-    for job in settings.jobs:
-        print(f"Fetching appointment search: {job.name}")
-        payload, raw_text = fetch_luxmed(settings, job, cookie_header)
-        terms = extract_terms(payload, raw_text)
-        matches = matches_filters(terms, raw_text, job)
+        for job in account.jobs:
+            print(f"Fetching appointment search: {account.name} / {job.name}")
+            payload, raw_text = fetch_luxmed(settings, job, cookie_header)
+            terms = extract_terms(payload, raw_text)
+            matches = matches_filters(terms, raw_text, job)
 
-        print(f"Total terms: {len(terms)}")
-        print(f"Matching terms: {len(matches)}")
+            print(f"Total terms: {len(terms)}")
+            print(f"Matching terms: {len(matches)}")
 
-        for index, term in enumerate(matches[:10], start=1):
-            if term.get("rawText"):
-                print(f"{index}. {term['rawText'][:200]}")
-                continue
-            print(
-                f"{index}. {term.get('dateTimeFrom')} - {term.get('dateTimeTo')} | "
-                f"{term.get('doctorName')} | {term.get('clinic') or term.get('clinicGroup')} | "
-                f"{term_identifier(term)}"
-            )
+            for index, term in enumerate(matches[:10], start=1):
+                if term.get("rawText"):
+                    print(f"{index}. {term['rawText'][:200]}")
+                    continue
+                print(
+                    f"{index}. {term.get('dateTimeFrom')} - {term.get('dateTimeTo')} | "
+                    f"{term.get('doctorName')} | {term.get('clinic') or term.get('clinicGroup')} | "
+                    f"{term_identifier(term)}"
+                )
 
-        if len(matches) > 10:
-            print(f"...and {len(matches) - 10} more")
+            if len(matches) > 10:
+                print(f"...and {len(matches) - 10} more")
 
-        if isinstance(payload, dict):
-            print("Response summary:")
-            print(json.dumps({key: payload.get(key) for key in ("success", "pMode", "correlationId")}, ensure_ascii=False))
+            if isinstance(payload, dict):
+                print("Response summary:")
+                print(json.dumps({key: payload.get(key) for key in ("success", "pMode", "correlationId")}, ensure_ascii=False))
 
     return 0
 
