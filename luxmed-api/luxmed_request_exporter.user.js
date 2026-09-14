@@ -1,11 +1,13 @@
 // ==UserScript==
 // @name Luxmed request exporter
 // @namespace http://tampermonkey.net/
-// @version 2026-09-14
+// @version 2026-09-14.1
 // @description Copy Luxmed appointment search request config for the VM monitor.
 // @author You
 // @match https://portalpacjenta.luxmed.pl/*
 // @require https://jolly-newton-babd42.netlify.app/UsefulScripts.js
+// @updateURL https://github.com/eugenefacecontrol/Luxmed/raw/refs/heads/main/luxmed-api/luxmed_request_exporter.user.js
+// @downloadURL https://github.com/eugenefacecontrol/Luxmed/raw/refs/heads/main/luxmed-api/luxmed_request_exporter.user.js
 // @icon https://www.google.com/s2/favicons?sz=64&domain=luxmed.pl
 // @grant none
 // ==/UserScript==
@@ -191,6 +193,13 @@
       .slice(0, 120);
   }
 
+  function jobNameCommandPart(value) {
+    return normalizeCommandPart(value)
+      .replace(/\s+/g, "-")
+      .replace(/-+/g, "-")
+      .slice(0, 120);
+  }
+
   function jobNameFromPage() {
     const items = [
       ...document.querySelectorAll('div[class="item"]'),
@@ -220,7 +229,7 @@
   }
 
   function toTelegramAddJob(config) {
-    return `/add_job ${normalizeCommandPart(accountName())} ${normalizeCommandPart(defaultJobName(config))} ${config.requestUrl}`;
+    return `/add_job ${normalizeCommandPart(accountName())} ${jobNameCommandPart(defaultJobName(config))} ${config.requestUrl}`;
   }
 
   function saveRequest(url, source = "network", responsePayload = null) {
